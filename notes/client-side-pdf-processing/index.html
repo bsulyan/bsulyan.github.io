@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Processing PDF Files in the Browser Without a Backend — Bastien Sulyan</title>
+  <meta name="description" content="Technical notes on parsing, merging, compressing, and sanitizing PDF documents directly in the browser using ArrayBuffers, Web Workers, and client-side PDF parsers.">
+  <link rel="canonical" href="https://bsulyan.github.io/notes/client-side-pdf-processing/">
+  <link rel="stylesheet" href="/style.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "headline": "Processing PDF Files in the Browser Without a Backend",
+    "author": {
+      "@type": "Person",
+      "name": "Bastien Sulyan",
+      "url": "https://bsulyan.github.io/"
+    },
+    "datePublished": "2026-10-22",
+    "url": "https://bsulyan.github.io/notes/client-side-pdf-processing/"
+  }
+  </script>
+</head>
+<body>
+  <div class="container">
+    <header class="site-header">
+      <a href="/" class="site-title">Bastien Sulyan</a>
+      <nav class="site-nav" aria-label="Main navigation">
+        <a href="/#notes">All Notes</a>
+        <a href="/#projects">Projects</a>
+        <a href="https://github.com/bsulyan">GitHub</a>
+      </nav>
+    </header>
+
+    <main>
+      <article>
+        <h1>Processing PDF Files in the Browser Without a Backend</h1>
+        <p class="meta">By Bastien Sulyan · October 2026 · Client-Side Document Architecture</p>
+
+        <p>
+          Most web applications still handle PDF manipulation by uploading the user's file to a remote server, invoking Ghostscript or QPDF in a container, and streaming the result back. For contracts, tax filings, medical records, or identity documents, that round-trip introduces unnecessary storage liability and network latency.
+        </p>
+        <p>
+          When building the <a href="https://sunasty.com/pdf/">browser-side PDF tools on Sunasty</a>, the goal was to execute every operation—merging, page reordering, stream compression, deskewing, and metadata removal—inside the user's tab using Web Workers, <code>ArrayBuffer</code> transfers, and WebAssembly. An architectural overview of why these pipelines belong on the client is also covered in our note on <a href="https://sunasty.com/articles/pdf-toolkit-browser/">running a full PDF toolkit in the browser</a>.
+        </p>
+
+        <h2>1. Zero-Copy Buffer Transfer to Web Workers</h2>
+        <p>
+          Parsing a 80 MB scanned PDF on the main UI thread will freeze scrolling and input events for several seconds. When a user selects a file via an <code>&lt;input type="file"&gt;</code> or drag-and-drop target, reading it as an <code>ArrayBuffer</code> and passing it in the transfer list of <code>Worker.postMessage</code> moves ownership of the memory block in constant time without duplicating bytes in RAM.
+        </p>
+
+<pre><code>// Main thread: transfer the underlying ArrayBuffer to the PDF worker
+async function dispatchPdfTask(file, operation, options = {}) {
+  const buffer = await file.arrayBuffer();
+  const worker = new Worker(new URL('./pdf-worker.js', import.meta.url), {
+    type: 'module'
+  });
+
+  return new Promise((resolve, reject) => {
+    worker.onmessage = (event) => {
+      worker.terminate();
+      if (event.data.error) {
+        reject(new Error(event.data.error));
+      } else {
+        resolve(new Blob([event.data.outputBuffer], { type: 'application/pdf' }));
+      }
+    };
+    worker.onerror = (err) => {
+      worker.terminate();
+      reject(err);
+    };
+
+    // Passing [buffer] in the second argument detaches it from the main thread
+    worker.postMessage({ operation, buffer, options }, [buffer]);
+  });
+}</code></pre>
+
+        <h2>2. Merging Object Graphs Without Corrupting Cross-References</h2>
+        <p>
+          A PDF file is a directed graph of numbered indirect objects (<code>obj ... endobj</code>) indexed by a cross-reference table (<code>xref</code>) or cross-reference stream at the tail of the file. Concatenating two PDFs requires copying the page tree nodes (<code>/Type /Page</code>) and their transitive dependencies (fonts, form XObjects, color spaces, content streams) into a target document and assigning fresh object IDs so references do not collide.
+        </p>
+        <p>
+          In our <a href="https://sunasty.com/pdf-merge/">client-side PDF merger</a>, we iterate over each source file inside the Worker, copy the requested page indices into a unified document catalog, and serialize with object streams enabled (<code>useObjectStreams: true</code>) so repeated structural dictionaries are compressed together:
+        </p>
+
+<pre><code>import { PDFDocument } from 'pdf-lib';
+
+export async function mergePdfBuffers(sourceBuffers) {
+  const mergedPdf = await PDFDocument.create();
+
+  for (const buffer of sourceBuffers) {
+    const sourceDoc = await PDFDocument.load(buffer, {
+      ignoreEncryption: false,
+      updateMetadata: false
+    });
+    const pageIndices = sourceDoc.getPageIndices();
+    const copiedPages = await mergedPdf.copyPages(sourceDoc, pageIndices);
+    for (const page of copiedPages) {
+      mergedPdf.addPage(page);
+    }
+  }
+
+  const bytes = await mergedPdf.save({ useObjectStreams: true });
+  return bytes.buffer;
+}</code></pre>
+
+        <h2>3. Inspecting and Purging <code>/Info</code> and XMP Metadata</h2>
+        <p>
+          PDF files store provenance in two distinct structures:
+        </p>
+        <ul>
+          <li>
+            <strong>The Trailer <code>/Info</code> Dictionary:</strong> Legacy key-value strings such as <code>/Author</code>, <code>/Creator</code>, <code>/Producer</code>, <code>/CreationDate</code>, and <code>/ModDate</code>.
+          </li>
+          <li>
+            <strong>The Catalog <code>/Metadata</code> Stream:</strong> An uncompressed or Flate-encoded XML packet following the Adobe XMP specification (<code>&lt;x:xmpmeta&gt;</code>), which often retains the original Author name, operating system, and document history even after a user clears the standard properties dialog.
+          </li>
+        </ul>
+        <p>
+          When sanitizing a document—for example in the <a href="https://sunasty.com/pdf-metadata/">PDF Metadata Inspector and Remover</a>—modifying only the <code>/Info</code> dictionary leaves the XMP stream intact. Both references must be cleared from the root catalog and trailer before writing a clean cross-reference table:
+        </p>
+
+<pre><code>import { PDFDocument, PDFName } from 'pdf-lib';
+
+export async function stripPdfMetadata(inputBuffer) {
+  const pdfDoc = await PDFDocument.load(inputBuffer, { updateMetadata: false });
+
+  // 1. Clear standard Info dictionary keys
+  pdfDoc.setTitle('');
+  pdfDoc.setAuthor('');
+  pdfDoc.setSubject('');
+  pdfDoc.setKeywords([]);
+  pdfDoc.setProducer('');
+  pdfDoc.setCreator('');
+
+  // 2. Delete the XMP /Metadata stream reference from the document Catalog
+  const catalog = pdfDoc.catalog;
+  if (catalog.has(PDFName.of('Metadata'))) {
+    catalog.delete(PDFName.of('Metadata'));
+  }
+
+  // 3. Remove custom non-standard keys from the Info dictionary
+  const infoRef = pdfDoc.context.trailerInfo.Info;
+  if (infoRef) {
+    const infoDict = pdfDoc.context.lookup(infoRef);
+    if (infoDict && typeof infoDict.keys === 'function') {
+      for (const key of infoDict.keys()) {
+        infoDict.delete(key);
+      }
+    }
+  }
+
+  return (await pdfDoc.save({ useObjectStreams: true })).buffer;
+}</code></pre>
+
+        <h2>4. Client-Side Compression and Image Downsampling</h2>
+        <p>
+          Why do 5-page PDFs sometimes exceed 25 MB? In almost every case, the culprit is either high-resolution RGB images embedded as raw Flate streams instead of baseline JPEG (<code>/DCTDecode</code>), or unsubsetted TrueType fonts duplicated across pages.
+        </p>
+        <p>
+          There are two distinct ways to reduce PDF size in the browser, both implemented in the <a href="https://sunasty.com/pdf-compress/">Sunasty PDF Compressor</a> and detailed practically in our guide on <a href="https://sunasty.com/guides/compress-pdf-for-email/">compressing PDF files for email attachments</a>:
+        </p>
+        <ol>
+          <li>
+            <strong>Structural &amp; Stream Recompression:</strong> Parsing indirect objects, removing unreferenced orphan objects (such as leftover incremental update revisions from signatures or annotations), and packing non-stream objects into compressed <code>/ObjStm</code> containers.
+          </li>
+          <li>
+            <strong>Raster Downsampling (150 DPI / 200 DPI):</strong> For scanned documents where text is already rasterized, rendering each page at a controlled scale onto an <code>OffscreenCanvas</code>, encoding to progressive JPEG at quality <code>0.75</code>, and rebuilding a clean PDF container around the compressed image streams.
+          </li>
+        </ol>
+
+        <h2>5. Deskewing Scanned Pages and Applying Electronic Signatures</h2>
+        <p>
+          Scanned sheets fed through an automatic document feeder often arrive tilted by 1° to 4°. By rendering a low-resolution grayscale preview of the page on a canvas and computing horizontal projection profiles across candidate angles between <code>-5°</code> and <code>+5°</code>, we can find the angle that maximizes variance between text lines and whitespace gaps. The <a href="https://sunasty.com/pdf-deskew/">PDF Deskew utility</a> applies the inverse rotation matrix directly to the page content stream or raster image without uploading the scan.
+        </p>
+        <p>
+          Similarly, placing a drawn or transparent PNG signature onto a contract does not require a cloud signing SaaS when a visual signature is sufficient: you can composite the PNG image as an XObject at exact PDF point coordinates (where <code>1 pt = 1/72 inch</code> and the origin <code>(0, 0)</code> is at the bottom-left corner of the <code>CropBox</code>). We walked through the complete coordinate math and user workflow in <a href="https://sunasty.com/guides/sign-pdf-without-printing/">how to sign a PDF without printing it</a>.
+        </p>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <span><a href="/">← Back to Bastien Sulyan</a></span>
+      <span>
+        <a href="https://sunasty.com/pdf/">Sunasty PDF Tools</a> ·
+        <a href="https://ulysan.fr/">Ulysan</a>
+      </span>
+    </footer>
+  </div>
+</body>
+</html>

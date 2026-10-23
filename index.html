@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bastien Sulyan — Independent Software Developer (Strasbourg)</title>
+  <meta name="description" content="Technical notes, browser-side file tools, and software projects by Bastien Sulyan, independent developer in Strasbourg and founder of Ulysan and Sunasty.">
+  <meta name="google-site-verification" content="NmgTToJHODULyre12SV4QZodJO1JFHPsGbyhVvtlxVw">
+  <meta name="msvalidate.01" content="205670165C1AB01DEFBC25FAD3AEF97A">
+  <link rel="canonical" href="https://bsulyan.github.io/">
+  <link rel="stylesheet" href="/style.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Person",
+    "name": "Bastien Sulyan",
+    "url": "https://bsulyan.github.io/",
+    "jobTitle": "Independent Software Developer",
+    "address": {
+      "@type": "PostalAddress",
+      "addressLocality": "Strasbourg",
+      "addressCountry": "FR"
+    },
+    "sameAs": [
+      "https://github.com/bsulyan",
+      "https://ulysan.fr/",
+      "https://sunasty.com/"
+    ],
+    "worksFor": {
+      "@type": "Organization",
+      "name": "Ulysan",
+      "url": "https://ulysan.fr/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div class="container">
+    <header class="site-header">
+      <a href="/" class="site-title">Bastien Sulyan</a>
+      <nav class="site-nav" aria-label="Main navigation">
+        <a href="#notes">Notes</a>
+        <a href="#projects">Projects</a>
+        <a href="https://github.com/bsulyan">GitHub</a>
+      </nav>
+    </header>
+
+    <main>
+      <section aria-labelledby="intro-heading">
+        <h1 id="intro-heading">Bastien Sulyan</h1>
+        <p class="meta">Independent software developer in Strasbourg, France</p>
+        <p>
+          I design and build static web software, client-side file utilities, and offline mobile applications.
+          My work focuses on running binary document, media, and image pipelines directly inside the browser using Web Workers, WebAssembly, and native Web APIs so user files do not have to pass through remote servers.
+        </p>
+        <p>
+          I run <a href="https://ulysan.fr/">Ulysan</a>, an independent web and software studio in Strasbourg, and build <a href="https://sunasty.com/">Sunasty</a>, a collection of browser-side tools for PDF, image, audio, video, and developer workflows.
+        </p>
+      </section>
+
+      <section id="notes" aria-labelledby="notes-heading">
+        <h2 id="notes-heading">Technical Notes</h2>
+        <p>
+          Implementation notes and reference code drawn from building client-side document, image, color, and audio utilities.
+        </p>
+        <ul class="note-list">
+          <li>
+            <a class="note-title" href="/notes/client-side-pdf-processing/">Processing PDF Files in the Browser Without a Backend</a>
+            <p class="note-summary">
+              Working with PDF cross-reference tables, <code>ArrayBuffer</code> transfers to Web Workers, page merging, stream recompression, and inspecting <code>/Info</code> dictionaries and XMP packets locally.
+            </p>
+          </li>
+          <li>
+            <a class="note-title" href="/notes/stripping-exif-and-c2pa-metadata/">Inspecting and Stripping EXIF, GPS, and C2PA Metadata in the Browser</a>
+            <p class="note-summary">
+              Parsing JPEG markers (<code>APP1</code>, <code>APP11</code>), reading TIFF IFD tags and JUMBF <code>c2pa</code> provenance boxes, and stripping metadata without full pixel recompression.
+            </p>
+          </li>
+          <li>
+            <a class="note-title" href="/notes/multi-scale-qr-decoding-canvas/">Decoding Small and Low-Contrast QR Codes on HTML5 Canvas</a>
+            <p class="note-summary">
+              Why single-pass <code>jsQR</code> scans fail on full-page screenshots, overlapping 3×3 spatial tiling, local thresholding, and RFC 6238 TOTP generation with <code>SubtleCrypto</code>.
+            </p>
+          </li>
+          <li>
+            <a class="note-title" href="/notes/oklch-and-wcag-contrast-math/">sRGB, OKLCH, and WCAG 2.1 Contrast Calculations in Pure JavaScript</a>
+            <p class="note-summary">
+              Gamma linearization, Björn Ottosson's Oklab matrices, relative luminance ratios, and binary search over perceptual lightness <code>L</code> to meet WCAG AA/AAA targets while preserving hue.
+            </p>
+          </li>
+          <li>
+            <a class="note-title" href="/notes/browser-audio-cleanup-and-extraction/">Client-Side Audio Extraction and Podcast Cleanup in the Browser</a>
+            <p class="note-summary">
+              Demuxing MP4 containers to MP3 or WAV in WebAssembly, reading ID3v2 frames, stem separation constraints in memory, and local loudness normalization for spoken-word recordings.
+            </p>
+          </li>
+        </ul>
+      </section>
+
+      <section id="projects" aria-labelledby="projects-heading">
+        <h2 id="projects-heading">Projects &amp; Open-Source Tools</h2>
+
+        <div class="project-block">
+          <h3><a href="https://sunasty.com/">Sunasty</a> — Browser-Side File Tools</h3>
+          <p>
+            Over 60 browser utilities that process files locally on the user's device: <a href="https://sunasty.com/pdf/">PDF tools</a> (<a href="https://sunasty.com/pdf-merge/">merge</a>, <a href="https://sunasty.com/pdf-compress/">compress</a>, <a href="https://sunasty.com/pdf-metadata/">metadata</a>, <a href="https://sunasty.com/pdf-deskew/">deskew</a>), <a href="https://sunasty.com/image/">image tools</a> (<a href="https://sunasty.com/exif-reader/">EXIF inspector</a>, <a href="https://sunasty.com/c2pa-reader/">C2PA reader</a>, <a href="https://sunasty.com/image-compress/">compression</a>), <a href="https://sunasty.com/audio/">audio</a> and <a href="https://sunasty.com/video/">video</a> utilities, <a href="https://sunasty.com/privacy-tools/">privacy checks</a>, and <a href="https://sunasty.com/dev/">developer tools</a>.
+          </p>
+        </div>
+
+        <div class="project-block">
+          <h3><a href="https://ulysan.fr/">Ulysan</a> — Web Studio &amp; Offline Mobile Games</h3>
+          <p>
+            Independent software studio based in Strasbourg building bespoke static web sites, custom business web applications, and ad-respectful offline mobile games such as <a href="https://ulysan.fr/solitaire/">Klondike Solitaire for Android</a>.
+          </p>
+        </div>
+
+        <div class="project-block">
+          <h3><a href="https://github.com/bsulyan/sunasty-qr-scanner">Sunasty QR Scanner</a> (Chrome Extension, MIT)</h3>
+          <p>
+            Manifest V3 Chrome extension (<a href="https://chromewebstore.google.com/detail/sunasty-qr-code-scanner-g/fbiighpklpogdbnhdapbiijcadhlijcb">available on the Chrome Web Store</a>) that scans QR codes from the active tab, images, or clipboard, decodes Wi-Fi and <code>otpauth://</code> payloads locally, and generates SVG/PNG codes. Companion to the <a href="https://sunasty.com/qr-scan/">Sunasty Web QR Scanner</a> and <a href="https://sunasty.com/qr-code/">QR Generator</a>, with its payload parser published on npm as <a href="https://www.npmjs.com/package/sunasty-qr-payload"><code>sunasty-qr-payload</code></a> (<a href="https://github.com/bsulyan/sunasty-qr-payload">GitHub</a>).
+          </p>
+        </div>
+
+        <div class="project-block">
+          <h3><a href="https://github.com/bsulyan/sunasty-color-picker">Sunasty Color Picker</a> &amp; <a href="https://www.npmjs.com/package/sunasty-color-math">sunasty-color-math</a> (MIT)</h3>
+          <p>
+            Manifest V3 eyedropper and zero-dependency color conversion library (<a href="https://www.npmjs.com/package/sunasty-color-math">npm</a> · <a href="https://github.com/bsulyan/sunasty-color-math">GitHub</a>) supporting HEX, RGB, HSL, and OKLCH, with live WCAG 2.1 contrast checks and accessible shade suggestions. Companion to the <a href="https://sunasty.com/color-picker/">Sunasty Web Color Picker</a> and <a href="https://sunasty.com/contrast-checker/">WCAG Contrast Checker</a>.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <span>Bastien Sulyan — Strasbourg, France</span>
+      <span>
+        <a href="https://ulysan.fr/">ulysan.fr</a> ·
+        <a href="https://sunasty.com/">sunasty.com</a> ·
+        <a href="https://github.com/bsulyan">github.com/bsulyan</a>
+      </span>
+    </footer>
+  </div>
+</body>
+</html>

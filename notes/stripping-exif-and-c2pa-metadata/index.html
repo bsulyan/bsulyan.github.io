@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Inspecting and Stripping EXIF, GPS, and C2PA Metadata in the Browser — Bastien Sulyan</title>
+  <meta name="description" content="How to parse JPEG application segments (APP1 EXIF, XMP, APP11 JUMBF/C2PA) and strip location and device metadata in JavaScript without recompressing image pixels.">
+  <link rel="canonical" href="https://bsulyan.github.io/notes/stripping-exif-and-c2pa-metadata/">
+  <link rel="stylesheet" href="/style.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "headline": "Inspecting and Stripping EXIF, GPS, and C2PA Metadata in the Browser",
+    "author": {
+      "@type": "Person",
+      "name": "Bastien Sulyan",
+      "url": "https://bsulyan.github.io/"
+    },
+    "datePublished": "2026-10-22",
+    "url": "https://bsulyan.github.io/notes/stripping-exif-and-c2pa-metadata/"
+  }
+  </script>
+</head>
+<body>
+  <div class="container">
+    <header class="site-header">
+      <a href="/" class="site-title">Bastien Sulyan</a>
+      <nav class="site-nav" aria-label="Main navigation">
+        <a href="/#notes">All Notes</a>
+        <a href="/#projects">Projects</a>
+        <a href="https://github.com/bsulyan">GitHub</a>
+      </nav>
+    </header>
+
+    <main>
+      <article>
+        <h1>Inspecting and Stripping EXIF, GPS, and C2PA Metadata in the Browser</h1>
+        <p class="meta">By Bastien Sulyan · October 2026 · Binary Formats &amp; Privacy</p>
+
+        <p>
+          Every smartphone photo embeds a surprising amount of telemetry outside the visible pixel matrix: GPS latitude, longitude, altitude, compass bearing, lens serial number, shutter timestamp, and often an embedded JPEG thumbnail inside the EXIF header that persists even if the main image was cropped in a poorly implemented editor. Newer cameras and generative pipelines also attach cryptographic provenance manifests in C2PA (Coalition for Content Provenance and Authenticity) JUMBF containers.
+        </p>
+        <p>
+          Uploading original photos to a third-party server just to inspect or remove those headers defeats the privacy objective, as discussed in our analysis of <a href="https://sunasty.com/articles/privacy-risks-online-file-tools/">privacy risks in online file tools</a>. Below is how we parse and sanitize image containers locally across our <a href="https://sunasty.com/image/">browser image tools</a> and <a href="https://sunasty.com/privacy-tools/">file privacy utilities</a>.
+        </p>
+
+        <h2>1. Anatomy of JPEG Application Markers</h2>
+        <p>
+          A baseline or progressive JPEG stream begins with the Start of Image marker (<code>0xFFD8</code>) followed by a sequence of framed segments before the Start of Scan (<code>0xFFDA</code>) compressed entropy data begins. Each marker consists of <code>0xFF</code>, a marker type byte, and a big-endian 16-bit length field (which includes the two length bytes themselves):
+        </p>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Marker</th>
+              <th>Hex</th>
+              <th>Payload Identifier / Purpose</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>APP0</code></td>
+              <td><code>0xFFE0</code></td>
+              <td><code>JFIF\0</code> — pixel density and aspect ratio</td>
+            </tr>
+            <tr>
+              <td><code>APP1</code></td>
+              <td><code>0xFFE1</code></td>
+              <td><code>Exif\0\0</code> (TIFF IFD, GPS IFD) or <code>http://ns.adobe.com/xap/1.0/\0</code> (XMP packet)</td>
+            </tr>
+            <tr>
+              <td><code>APP2</code></td>
+              <td><code>0xFFE2</code></td>
+              <td><code>ICC_PROFILE\0</code> — color management profile (worth keeping for wide-gamut P3 photos)</td>
+            </tr>
+            <tr>
+              <td><code>APP11</code></td>
+              <td><code>0xFFEB</code></td>
+              <td>ISO/IEC 19566-5 JUMBF boxes carrying C2PA Content Credentials (<code>c2pa</code>)</td>
+            </tr>
+            <tr>
+              <td><code>APP13</code></td>
+              <td><code>0xFFED</code></td>
+              <td><code>Photoshop 3.0\0</code> — IPTC press metadata and 8BIM resources</td>
+            </tr>
+            <tr>
+              <td><code>COM</code></td>
+              <td><code>0xFFFE</code></td>
+              <td>Free-form ASCII/UTF-8 comment string</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h2>2. Lossless JPEG Metadata Stripping via <code>DataView</code></h2>
+        <p>
+          Many tutorials suggest drawing the image onto an HTML5 <code>&lt;canvas&gt;</code> and calling <code>canvas.toBlob('image/jpeg', 0.92)</code> to strip EXIF. While effective, canvas re-encoding decodes and re-quantizes the DCT coefficients, introducing generation loss and discarding the embedded ICC color profile.
+        </p>
+        <p>
+          For JPEG files, we can instead scan the segment headers with a <code>DataView</code> and copy only the structural markers, quantization/Huffman tables, optional <code>APP2</code> ICC profile, and raw entropy scan bytes into a new <code>Uint8Array</code>—achieving zero pixel degradation in under 5 milliseconds. This lossless surgery powers the <a href="https://sunasty.com/exif-reader/">EXIF Reader and Remover</a> and is covered step by step in our guide on <a href="https://sunasty.com/guides/remove-exif-gps-from-photos/">removing EXIF and GPS location data from photos</a>.
+        </p>
+
+<pre><code>/**
+ * Strips APP1 (EXIF/XMP), APP11 (C2PA), APP13 (IPTC), and COM segments from a JPEG
+ * without decoding or recompressing the DCT image data.
+ */
+export function stripJpegMetadataLossless(arrayBuffer, keepIccProfile = true) {
+  const view = new DataView(arrayBuffer);
+  const bytes = new Uint8Array(arrayBuffer);
+
+  if (view.getUint16(0, false) !== 0xffd8) {
+    throw new Error('Not a valid JPEG file (missing SOI 0xFFD8)');
+  }
+
+  const chunks = [bytes.subarray(0, 2)]; // Keep SOI
+  let offset = 2;
+
+  while (offset + 4 &lt;= bytes.length) {
+    if (bytes[offset] !== 0xff) {
+      break;
+    }
+    const marker = bytes[offset + 1];
+
+    // SOS (Start of Scan, 0xDA) or EOI (End of Image, 0xD9):
+    // Copy the remainder of the compressed bitstream untouched
+    if (marker === 0xda || marker === 0xd9) {
+      chunks.push(bytes.subarray(offset));
+      break;
+    }
+
+    // Standalone markers without a length payload
+    if (marker === 0x01 || (marker &gt;= 0xd0 &amp;&amp; marker &lt;= 0xd7)) {
+      chunks.push(bytes.subarray(offset, offset + 2));
+      offset += 2;
+      continue;
+    }
+
+    const segmentLength = view.getUint16(offset + 2, false);
+    const segmentEnd = offset + 2 + segmentLength;
+
+    const isApp0 = marker === 0xe0;
+    const isApp2Icc = marker === 0xe2 &amp;&amp; keepIccProfile;
+    const isAppMarker = marker &gt;= 0xe0 &amp;&amp; marker &lt;= 0xef;
+    const isComment = marker === 0xfe;
+
+    if ((!isAppMarker &amp;&amp; !isComment) || isApp0 || isApp2Icc) {
+      chunks.push(bytes.subarray(offset, segmentEnd));
+    }
+
+    offset = segmentEnd;
+  }
+
+  const totalLength = chunks.reduce((sum, c) => sum + c.byteLength, 0);
+  const out = new Uint8Array(totalLength);
+  let writePos = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, writePos);
+    writePos += chunk.byteLength;
+  }
+  return out.buffer;
+}</code></pre>
+
+        <h2>3. Reading C2PA Provenance and JUMBF Boxes</h2>
+        <p>
+          C2PA Content Credentials store a signed manifest store inside ISO BMFF / JUMBF boxes (UUID <code>d8fec3d6-1b0e-483c-9297-5828877ec481</code>). In JPEG files, large manifests are split across multiple extended <code>APP11</code> segments that share a sequence number and box instance number, reassembled in memory, and decoded as CBOR structures containing claim signatures, software agent names (e.g., camera firmware or AI model identifiers), and hard/soft ingredient assertions.
+        </p>
+        <p>
+          You can inspect those CBOR claim graphs and verify what actions were recorded on a media file without uploading it using the <a href="https://sunasty.com/c2pa-reader/">Sunasty C2PA Content Credentials Reader</a>.
+        </p>
+
+        <h2>4. When Re-Encoding Is Useful, and Beyond Image Containers</h2>
+        <p>
+          If the goal is both metadata removal and file size reduction for web publishing, re-encoding through WebP or AVIF via the <a href="https://sunasty.com/image-compress/">browser image compressor</a> discards all original marker segments while cutting payload byte size by 40% to 70%.
+        </p>
+        <p>
+          Note that office documents (<code>.docx</code>, <code>.xlsx</code>, <code>.pptx</code>) carry a parallel privacy surface: because OpenXML files are ZIP archives, inspecting and sanitizing <code>docProps/core.xml</code> and <code>docProps/app.xml</code> in memory removes author names, revision counts, and company identifiers just as cleanly. We apply the same local ZIP-stream approach in the <a href="https://sunasty.com/office-metadata/">Office Document Metadata Inspector</a>.
+        </p>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <span><a href="/">← Back to Bastien Sulyan</a></span>
+      <span>
+        <a href="https://sunasty.com/privacy-tools/">Sunasty Privacy Tools</a> ·
+        <a href="https://ulysan.fr/">Ulysan</a>
+      </span>
+    </footer>
+  </div>
+</body>
+</html>

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>sRGB, OKLCH, and WCAG 2.1 Contrast Calculations in Pure JavaScript — Bastien Sulyan</title>
+  <meta name="description" content="Exact matrix math for converting sRGB to Oklab/OKLCH, computing WCAG 2.1 relative luminance contrast ratios, and adjusting perceptual lightness L to meet accessibility targets.">
+  <link rel="canonical" href="https://bsulyan.github.io/notes/oklch-and-wcag-contrast-math/">
+  <link rel="stylesheet" href="/style.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "headline": "sRGB, OKLCH, and WCAG 2.1 Contrast Calculations in Pure JavaScript",
+    "author": {
+      "@type": "Person",
+      "name": "Bastien Sulyan",
+      "url": "https://bsulyan.github.io/"
+    },
+    "datePublished": "2026-10-22",
+    "url": "https://bsulyan.github.io/notes/oklch-and-wcag-contrast-math/"
+  }
+  </script>
+</head>
+<body>
+  <div class="container">
+    <header class="site-header">
+      <a href="/" class="site-title">Bastien Sulyan</a>
+      <nav class="site-nav" aria-label="Main navigation">
+        <a href="/#notes">All Notes</a>
+        <a href="/#projects">Projects</a>
+        <a href="https://github.com/bsulyan">GitHub</a>
+      </nav>
+    </header>
+
+    <main>
+      <article>
+        <h1>sRGB, OKLCH, and WCAG 2.1 Contrast Calculations in Pure JavaScript</h1>
+        <p class="meta">By Bastien Sulyan · October 2026 · Color Science &amp; Frontend Engineering</p>
+
+        <p>
+          Working with HSL in CSS makes palette generation deceptive: a pure yellow (<code>hsl(60, 100%, 50%)</code>) and a pure blue (<code>hsl(240, 100%, 50%)</code>) report the exact same HSL lightness (<code>50%</code>), yet yellow has a WCAG relative luminance of <code>0.928</code> while blue sits at <code>0.072</code>. Adjusting HSL lightness to pass WCAG AA contrast norms often shifts perceived saturation or muddies the hue.
+        </p>
+        <p>
+          When building the <a href="https://sunasty.com/color-picker/">Sunasty Web Color Picker</a> and the open-source <a href="https://github.com/bsulyan/sunasty-color-picker">Sunasty Color Picker Chrome Extension</a>, we implemented zero-dependency conversions between sRGB, Björn Ottosson's perceptual Oklab / OKLCH color space, and WCAG 2.1 relative luminance so developers can sample any pixel on screen and immediately compute the nearest AA/AAA-compliant shade at constant hue.
+        </p>
+
+        <h2>1. sRGB Inverse Companding (Gamma Linearization)</h2>
+        <p>
+          Standard 8-bit RGB channels (<code>0..255</code>) are gamma-encoded using the sRGB transfer function. Before applying linear matrix transformations—whether for CIE XYZ, Oklab, or WCAG relative luminance—each normalized channel <code>c ∈ [0, 1]</code> must be converted to linear light:
+        </p>
+
+<pre><code>export function srgbChannelToLinear(c8bit) {
+  const c = c8bit / 255;
+  return c &lt;= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+}
+
+export function linearChannelToSrgb(cLinear) {
+  const clamped = Math.min(1, Math.max(0, cLinear));
+  const encoded =
+    clamped &lt;= 0.0031308
+      ? 12.92 * clamped
+      : 1.055 * Math.pow(clamped, 1 / 2.4) - 0.055;
+  return Math.round(encoded * 255);
+}</code></pre>
+
+        <h2>2. Converting Linear sRGB to Oklab and OKLCH</h2>
+        <p>
+          Oklab models human visual perception by transforming linear sRGB into approximate cone responses (<code>l, m, s</code>), applying a cube-root nonlinearity (<code>Math.cbrt</code>), and projecting into orthogonal perceptual coordinates <code>(L, a, b)</code>. Polar conversion then yields <code>OKLCH(L, C, H)</code>, where <code>L ∈ [0, 1]</code> is perceived lightness, <code>C</code> is chroma, and <code>H ∈ [0, 360)</code> is hue angle in degrees:
+        </p>
+
+<pre><code>export function rgbToOklch(r, g, b) {
+  const lr = srgbChannelToLinear(r);
+  const lg = srgbChannelToLinear(g);
+  const lb = srgbChannelToLinear(b);
+
+  const l = Math.cbrt(0.4122214708 * lr + 0.5363325363 * lg + 0.0514459929 * lb);
+  const m = Math.cbrt(0.2119034982 * lr + 0.6806995451 * lg + 0.1073969566 * lb);
+  const s = Math.cbrt(0.0883024619 * lr + 0.2817188376 * lg + 0.6299787005 * lb);
+
+  const L = 0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s;
+  const a = 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s;
+  const bAxis = 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s;
+
+  const C = Math.sqrt(a * a + bAxis * bAxis);
+  let H = (Math.atan2(bAxis, a) * 180) / Math.PI;
+  if (H &lt; 0) H += 360;
+
+  return {
+    L: Number(L.toFixed(4)),
+    C: Number(C.toFixed(4)),
+    H: C &lt; 0.0001 ? 0 : Number(H.toFixed(1))
+  };
+}</code></pre>
+
+        <h2>3. WCAG 2.1 Relative Luminance and Contrast Ratio</h2>
+        <p>
+          Per the WCAG 2.1 specification, relative luminance <code>Y</code> weights the three linear RGB channels according to human photopic luminous efficiency (heavily dominated by green at <code>71.52%</code>), and the contrast ratio between a lighter luminance <code>L1</code> and darker luminance <code>L2</code> spans from <code>1:1</code> to <code>21:1</code>:
+        </p>
+
+<pre><code>export function getRelativeLuminance(r, g, b) {
+  const R = srgbChannelToLinear(r);
+  const G = srgbChannelToLinear(g);
+  const B = srgbChannelToLinear(b);
+  return 0.2126 * R + 0.7152 * G + 0.0722 * B;
+}
+
+export function getContrastRatio(rgbA, rgbB) {
+  const lumA = getRelativeLuminance(rgbA.r, rgbA.g, rgbA.b);
+  const lumB = getRelativeLuminance(rgbB.r, rgbB.g, rgbB.b);
+  const brightest = Math.max(lumA, lumB);
+  const darkest = Math.min(lumA, lumB);
+  return (brightest + 0.05) / (darkest + 0.05);
+}</code></pre>
+
+        <ul>
+          <li><strong>WCAG AA Normal Text:</strong> minimum <code>4.5:1</code> (<code>3.0:1</code> for large text ≥ 18pt or ≥ 14pt bold and UI components).</li>
+          <li><strong>WCAG AAA Normal Text:</strong> minimum <code>7.0:1</code> (<code>4.5:1</code> for large text).</li>
+        </ul>
+
+        <h2>4. Finding the Nearest Accessible Shade via Lightness Search</h2>
+        <p>
+          When a brand color fails WCAG AA against a white (<code>#ffffff</code>) or dark (<code>#09090b</code>) surface, we want to adjust lightness just enough to cross <code>4.5:1</code> while keeping the hue angle constant. Because relative luminance is strictly monotonic with respect to perceptual lightness along a fixed hue ray, a 16-step binary search over lightness finds the closest compliant color in microseconds.
+        </p>
+
+        <h2>5. Related Frontend &amp; Inspection Utilities</h2>
+        <p>
+          Design systems often export color tokens as W3C Design Token JSON files alongside visual regression snapshots. In the <a href="https://sunasty.com/dev/">Sunasty Developer Tools</a> collection, we pair the color picker with a client-side <a href="https://sunasty.com/json-formatter/">JSON Formatter and Validator</a> (see our note on <a href="https://sunasty.com/guides/format-json-online/">formatting and validating JSON locally</a>) and a pixel-level <a href="https://sunasty.com/image-compare/">Image Comparison slider and diff view</a> to inspect UI changes before deployment.
+        </p>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <span><a href="/">← Back to Bastien Sulyan</a></span>
+      <span>
+        <a href="https://sunasty.com/color-picker/">Sunasty Color Picker</a> ·
+        <a href="https://github.com/bsulyan/sunasty-color-picker">GitHub Repository</a>
+      </span>
+    </footer>
+  </div>
+</body>
+</html>

@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Client-Side Audio Extraction and Podcast Cleanup in the Browser — Bastien Sulyan</title>
+  <meta name="description" content="Demuxing MP4 video tracks to MP3/WAV, OfflineAudioContext filtering, ID3v2 tag parsing, and local podcast cleanup using Web Audio and WebAssembly.">
+  <link rel="canonical" href="https://bsulyan.github.io/notes/browser-audio-cleanup-and-extraction/">
+  <link rel="stylesheet" href="/style.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "headline": "Client-Side Audio Extraction and Podcast Cleanup in the Browser",
+    "author": {
+      "@type": "Person",
+      "name": "Bastien Sulyan",
+      "url": "https://bsulyan.github.io/"
+    },
+    "datePublished": "2026-10-22",
+    "url": "https://bsulyan.github.io/notes/browser-audio-cleanup-and-extraction/"
+  }
+  </script>
+</head>
+<body>
+  <div class="container">
+    <header class="site-header">
+      <a href="/" class="site-title">Bastien Sulyan</a>
+      <nav class="site-nav" aria-label="Main navigation">
+        <a href="/#notes">All Notes</a>
+        <a href="/#projects">Projects</a>
+        <a href="https://github.com/bsulyan">GitHub</a>
+      </nav>
+    </header>
+
+    <main>
+      <article>
+        <h1>Client-Side Audio Extraction and Podcast Cleanup in the Browser</h1>
+        <p class="meta">By Bastien Sulyan · October 2026 · Web Audio API &amp; WebAssembly</p>
+
+        <p>
+          Recorded interviews, screen captures, and raw podcast tracks are often hundreds of megabytes in size. Uploading a 600 MB <code>.mp4</code> video recording just to extract a 40 MB <code>.mp3</code> voice track wastes bandwidth and exposes unedited recordings to external infrastructure. As outlined in our primer on <a href="https://sunasty.com/articles/what-is-client-side-processing/">how client-side file processing works</a>, modern browsers include both the Web Audio API (<code>OfflineAudioContext</code>) and WebAssembly SIMD execution, making local media pipelines fast enough for daily production work.
+        </p>
+        <p>
+          Below are the architectural notes behind the <a href="https://sunasty.com/audio/">Sunasty Audio Tools</a> and <a href="https://sunasty.com/video/">Video Utilities</a>, along with practical techniques we documented in <a href="https://sunasty.com/articles/clean-audio-for-podcasts/">cleaning audio for podcasts in the browser</a>.
+        </p>
+
+        <h2>1. Demuxing MP4 Containers and Encoding to MP3 or WAV</h2>
+        <p>
+          An <code>.mp4</code> or <code>.mov</code> file is an ISO Base Media File Format (ISOBMFF) container holding <code>moov</code> track metadata and <code>mdat</code> media sample boxes, typically pairing H.264/HEVC video with AAC-LC audio. When extracting audio in the <a href="https://sunasty.com/mp4-to-mp3/">MP4 to MP3 Converter</a>, decoding the video frames is pure overhead—only the audio elementary stream needs to be demuxed, decoded into planar 32-bit float PCM (<code>Float32Array</code>), and passed either to a WAV RIFF header writer or a WebAssembly LAME MP3 encoder inside a Worker.
+        </p>
+        <p>
+          Writing a 16-bit PCM <code>.wav</code> file from a decoded <code>AudioBuffer</code> requires just a 44-byte RIFF/WAVE header followed by interleaved little-endian <code>Int16</code> samples:
+        </p>
+
+<pre><code>export function encodeAudioBufferToWav(audioBuffer) {
+  const numChannels = audioBuffer.numberOfChannels;
+  const sampleRate = audioBuffer.sampleRate;
+  const numFrames = audioBuffer.length;
+  const bytesPerSample = 2; // 16-bit PCM
+  const blockAlign = numChannels * bytesPerSample;
+  const dataSize = numFrames * blockAlign;
+
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+
+  const writeAscii = (offset, text) => {
+    for (let i = 0; i &lt; text.length; i++) {
+      view.setUint8(offset + i, text.charCodeAt(i));
+    }
+  };
+
+  writeAscii(0, 'RIFF');
+  view.setUint32(4, 36 + dataSize, true);
+  writeAscii(8, 'WAVE');
+  writeAscii(12, 'fmt ');
+  view.setUint32(16, 16, true); // Subchunk1Size for PCM
+  view.setUint16(20, 1, true);  // AudioFormat 1 = Linear PCM
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * blockAlign, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, 16, true); // BitsPerSample
+  writeAscii(36, 'data');
+  view.setUint32(40, dataSize, true);
+
+  const channels = [];
+  for (let ch = 0; ch &lt; numChannels; ch++) {
+    channels.push(audioBuffer.getChannelData(ch));
+  }
+
+  let offset = 44;
+  for (let i = 0; i &lt; numFrames; i++) {
+    for (let ch = 0; ch &lt; numChannels; ch++) {
+      const sample = Math.max(-1, Math.min(1, channels[ch][i]));
+      view.setInt16(offset, sample &lt; 0 ? sample * 0x8000 : sample * 0x7fff, true);
+      offset += 2;
+    }
+  }
+
+  return buffer;
+}</code></pre>
+
+        <h2>2. High-Pass Rumble Filtering and Peak Normalization via <code>OfflineAudioContext</code></h2>
+        <p>
+          Spoken-word tracks recorded on desk microphones frequently suffer from low-frequency HVAC hum or desk thumps below <code>85 Hz</code>, plus uneven peak levels between speakers. Using <code>OfflineAudioContext</code>, we can run a second-order Butterworth high-pass filter (<code>BiquadFilterNode</code> set to <code>highpass</code> at <code>80 Hz</code>, <code>Q = 0.707</code>) and dynamic compression faster than real time without playing audio through the speakers:
+        </p>
+
+<pre><code>export async function renderCleanedVoiceBuffer(inputBuffer) {
+  const offlineCtx = new OfflineAudioContext(
+    inputBuffer.numberOfChannels,
+    inputBuffer.length,
+    inputBuffer.sampleRate
+  );
+
+  const source = offlineCtx.createBufferSource();
+  source.buffer = inputBuffer;
+
+  // Roll off sub-80Hz plosive and desk rumble
+  const highpass = offlineCtx.createBiquadFilter();
+  highpass.type = 'highpass';
+  highpass.frequency.value = 80;
+  highpass.Q.value = Math.SQRT1_2;
+
+  // Tame sudden vocal peaks
+  const compressor = offlineCtx.createDynamicsCompressor();
+  compressor.threshold.value = -18;
+  compressor.knee.value = 12;
+  compressor.ratio.value = 3;
+  compressor.attack.value = 0.005;
+  compressor.release.value = 0.15;
+
+  source.connect(highpass);
+  highpass.connect(compressor);
+  compressor.connect(offlineCtx.destination);
+  source.start(0);
+
+  return await offlineCtx.startRendering();
+}</code></pre>
+
+        <h2>3. Vocal Separation, Time-Stretching, and Screen Capture</h2>
+        <p>
+          Beyond basic EQ and dynamics, several specialized workflows run cleanly in the browser:
+        </p>
+        <ul>
+          <li>
+            <strong>Mid/Side &amp; Spectral Vocal Isolation:</strong> In stereo mixes where lead vocals are panned dead center (<code>L ≈ R</code>), phase-inverting the right channel (<code>M = (L+R)/2</code>, <code>S = (L-R)/2</code>) and applying band-limited spectral masking separates center vocals from stereo instrumentation. You can test this directly in the <a href="https://sunasty.com/vocal-remover/">browser Vocal Remover and Stem Splitter</a>.
+          </li>
+          <li>
+            <strong>Time-Domain Pitch-Preserving Speed Adjustment:</strong> Reviewing long lectures or interviews at <code>1.25×</code> or <code>1.5×</code> speed without the "chipmunk" pitch shift uses WSOLA (Waveform Similarity Overlap-Add) windowing, available in the <a href="https://sunasty.com/audio-speed/">Audio Speed and Pitch Changer</a>.
+          </li>
+          <li>
+            <strong>ID3v2 Tag Inspection &amp; Cover Art Embedding:</strong> MP3 files store episode titles, artist strings, and <code>APIC</code> cover art frames in an ID3v2 header at byte offset <code>0</code>, using 7-bit synchsafe integers (<code>(b0 &lt;&lt; 21) | (b1 &lt;&lt; 14) | (b2 &lt;&lt; 7) | b3</code>) for frame sizing. The <a href="https://sunasty.com/audio-tags/">Audio Tags and ID3 Editor</a> reads and rewrites these headers in place without re-encoding the MPEG audio frames.
+          </li>
+          <li>
+            <strong>Zero-Install Screen &amp; System Audio Recording:</strong> When recording product walkthroughs or remote calls, <code>navigator.mediaDevices.getDisplayMedia</code> combined with <code>MediaRecorder</code> captures both screen video and tab/system audio directly to a local WebM or MP4 blob—used in the <a href="https://sunasty.com/screen-recorder/">Sunasty Browser Screen Recorder</a>.
+          </li>
+        </ul>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <span><a href="/">← Back to Bastien Sulyan</a></span>
+      <span>
+        <a href="https://sunasty.com/audio/">Sunasty Audio Tools</a> ·
+        <a href="https://sunasty.com/video/">Video Tools</a>
+      </span>
+    </footer>
+  </div>
+</body>
+</html>

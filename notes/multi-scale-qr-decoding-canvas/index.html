@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Decoding Small and Low-Contrast QR Codes on HTML5 Canvas — Bastien Sulyan</title>
+  <meta name="description" content="Multi-scale canvas tiling, adaptive thresholding, and SubtleCrypto TOTP calculation for reliable client-side QR code scanning in browsers and Chrome extensions.">
+  <link rel="canonical" href="https://bsulyan.github.io/notes/multi-scale-qr-decoding-canvas/">
+  <link rel="stylesheet" href="/style.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "headline": "Decoding Small and Low-Contrast QR Codes on HTML5 Canvas",
+    "author": {
+      "@type": "Person",
+      "name": "Bastien Sulyan",
+      "url": "https://bsulyan.github.io/"
+    },
+    "datePublished": "2026-10-22",
+    "url": "https://bsulyan.github.io/notes/multi-scale-qr-decoding-canvas/"
+  }
+  </script>
+</head>
+<body>
+  <div class="container">
+    <header class="site-header">
+      <a href="/" class="site-title">Bastien Sulyan</a>
+      <nav class="site-nav" aria-label="Main navigation">
+        <a href="/#notes">All Notes</a>
+        <a href="/#projects">Projects</a>
+        <a href="https://github.com/bsulyan">GitHub</a>
+      </nav>
+    </header>
+
+    <main>
+      <article>
+        <h1>Decoding Small and Low-Contrast QR Codes on HTML5 Canvas</h1>
+        <p class="meta">By Bastien Sulyan · October 2026 · Computer Vision &amp; Web APIs</p>
+
+        <p>
+          When building the <a href="https://sunasty.com/qr-scan/">Sunasty Web QR Scanner</a> and its companion open-source Chrome extension <a href="https://github.com/bsulyan/sunasty-qr-scanner">sunasty-qr-scanner</a>, we noticed a recurring failure mode with standard JavaScript QR decoders such as <code>jsQR</code>: passing a full-resolution desktop screenshot (for example <code>2560×1440</code> on a Retina/HiDPI display) containing a small <code>140×140</code> QR code in one corner frequently returns <code>null</code>.
+        </p>
+        <p>
+          This note explains why single-pass adaptive binarization misses small or low-contrast codes on large canvases, how a multi-scale overlapping tile pipeline resolves the issue, and how to handle <code>otpauth://</code> 2FA setup codes locally with <code>SubtleCrypto</code>. All of these techniques are deployed in the <a href="https://sunasty.com/qr/">Sunasty QR toolkit</a>.
+        </p>
+
+        <h2>1. Why Single-Pass Full-Frame Scans Fail</h2>
+        <p>
+          Pure JavaScript QR decoders locate the three finder patterns (the nested <code>1:1:3:1:1</code> black-white-black-white-black square ratios) after converting the RGBA buffer into a binary bit matrix using local adaptive thresholding. When the input image is 3.6 megapixels and the QR code occupies less than 2% of the frame area:
+        </p>
+        <ul>
+          <li>Downscaling the full viewport to speed up detection blurs high-version QR modules (Version 10+ with dense payload URLs) beyond the Nyquist limit.</li>
+          <li>Keeping the full viewport resolution increases the adaptive threshold block size relative to the small QR modules, merging adjacent dark modules around the timing pattern.</li>
+          <li>Translucent UI overlays or colored brand QR codes reduce luminance contrast below the default threshold margin.</li>
+        </ul>
+
+        <h2>2. Multi-Scale Overlapping Grid + Contrast Fallback</h2>
+        <p>
+          To achieve fast recognition on normal images while recovering small codes on dense desktop screenshots, we run a cascaded pipeline:
+        </p>
+        <ol>
+          <li><strong>Pass 1 (Normalized Full Frame):</strong> Scan the full image capped at <code>1024 px</code> along its longest edge. If a QR fills the image, this succeeds in ~8 ms.</li>
+          <li><strong>Pass 2 (Native Resolution):</strong> If the source exceeds <code>1024 px</code>, scan at native <code>1:1</code> pixel resolution.</li>
+          <li><strong>Pass 3 (Overlapping 3×3 Spatial Grid):</strong> Divide the image into 9 overlapping regions (each covering <code>48%</code> of width and height, stepped at <code>0%</code>, <code>26%</code>, and <code>52%</code>). The 22% overlap ensures that a QR code straddling a tile boundary remains wholly inside at least one tile. Each tile is upscaled <code>1.5×</code> with nearest-neighbor / crisp interpolation before decoding.</li>
+          <li><strong>Pass 4 (Luminance Binarization):</strong> Apply a hard luminance threshold at <code>Y = 128</code> (<code>Y = 0.299R + 0.587G + 0.114B</code>) to rescue washed-out gray-on-beige QR graphics.</li>
+        </ol>
+
+<pre><code>export function decodeQrMultiScale(sourceCanvas, jsQR) {
+  const ctx = sourceCanvas.getContext('2d', { willReadFrequently: true });
+  const { width, height } = sourceCanvas;
+
+  // Pass 1: Direct scan
+  const fullData = ctx.getImageData(0, 0, width, height);
+  const directHit = jsQR(fullData.data, width, height, {
+    inversionAttempts: 'attemptBoth'
+  });
+  if (directHit && directHit.data) return directHit.data;
+
+  // Pass 2: Overlapping 3x3 sub-regions for small QR codes on large viewports
+  const tileCanvas = document.createElement('canvas');
+  const tileCtx = tileCanvas.getContext('2d', { willReadFrequently: true });
+  const offsets = [0, 0.26, 0.52];
+  const span = 0.48;
+
+  for (const ox of offsets) {
+    for (const oy of offsets) {
+      const sx = Math.floor(width * ox);
+      const sy = Math.floor(height * oy);
+      const sw = Math.floor(width * span);
+      const sh = Math.floor(height * span);
+
+      tileCanvas.width = Math.min(1200, Math.round(sw * 1.5));
+      tileCanvas.height = Math.min(1200, Math.round(sh * 1.5));
+      tileCtx.imageSmoothingEnabled = false;
+      tileCtx.drawImage(sourceCanvas, sx, sy, sw, sh, 0, 0, tileCanvas.width, tileCanvas.height);
+
+      const tileImg = tileCtx.getImageData(0, 0, tileCanvas.width, tileCanvas.height);
+      const hit = jsQR(tileImg.data, tileCanvas.width, tileCanvas.height, {
+        inversionAttempts: 'attemptBoth'
+      });
+      if (hit && hit.data) return hit.data;
+    }
+  }
+
+  // Pass 3: High-contrast binary threshold fallback
+  const bin = new Uint8ClampedArray(fullData.data);
+  for (let i = 0; i &lt; bin.length; i += 4) {
+    const luma = 0.299 * bin[i] + 0.587 * bin[i + 1] + 0.114 * bin[i + 2];
+    const v = luma &lt; 128 ? 0 : 255;
+    bin[i] = bin[i + 1] = bin[i + 2] = v;
+    bin[i + 3] = 255;
+  }
+  const binHit = jsQR(bin, width, height, { inversionAttempts: 'attemptBoth' });
+  return binHit && binHit.data ? binHit.data : null;
+}</code></pre>
+
+        <h2>3. Client-Side RFC 6238 TOTP Generation from <code>otpauth://</code></h2>
+        <p>
+          Many QR codes scanned on desktop screens are two-factor authentication enrollment codes formatted as <code>otpauth://totp/Issuer:account?secret=BASE32SECRET&amp;issuer=Issuer</code>. Rather than forcing the user to copy the raw URI and manually extract the Base32 query parameter, we can decode the Base32 secret and compute the live 6-digit RFC 6238 TOTP code directly via the browser's built-in <code>crypto.subtle</code> API:
+        </p>
+
+<pre><code>function decodeBase32(base32Str) {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  const cleaned = base32Str.toUpperCase().replace(/[^A-Z2-7]/g, '');
+  let bits = 0;
+  let value = 0;
+  const output = [];
+
+  for (let i = 0; i &lt; cleaned.length; i++) {
+    value = (value &lt;&lt; 5) | alphabet.indexOf(cleaned[i]);
+    bits += 5;
+    if (bits &gt;= 8) {
+      output.push((value &gt;&gt;&gt; (bits - 8)) &amp; 0xff);
+      bits -= 8;
+    }
+  }
+  return new Uint8Array(output);
+}
+
+export async function generateTotpToken(base32Secret, period = 30, digits = 6) {
+  const keyBytes = decodeBase32(base32Secret);
+  const counter = Math.floor(Date.now() / 1000 / period);
+
+  const counterBuffer = new ArrayBuffer(8);
+  const view = new DataView(counterBuffer);
+  view.setUint32(0, Math.floor(counter / 0x100000000), false);
+  view.setUint32(4, counter &gt;&gt;&gt; 0, false);
+
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    keyBytes,
+    { name: 'HMAC', hash: 'SHA-1' },
+    false,
+    ['sign']
+  );
+
+  const hmac = new Uint8Array(await crypto.subtle.sign('HMAC', cryptoKey, counterBuffer));
+  const offset = hmac[hmac.length - 1] &amp; 0x0f;
+  const binary =
+    ((hmac[offset] &amp; 0x7f) &lt;&lt; 24) |
+    ((hmac[offset + 1] &amp; 0xff) &lt;&lt; 16) |
+    ((hmac[offset + 2] &amp; 0xff) &lt;&lt; 8) |
+    (hmac[offset + 3] &amp; 0xff);
+
+  return String(binary % Math.pow(10, digits)).padStart(digits, '0');
+}</code></pre>
+
+        <h2>4. Generating Crisp Vector and Raster QR Codes</h2>
+        <p>
+          When generating QR codes in the browser—whether in the <a href="https://sunasty.com/qr-code/">Sunasty QR Code Generator</a> or the Chrome popup—rendering modules as fractional coordinates on a canvas causes subpixel anti-aliasing that blurs module edges. Always snap module coordinates to integer pixel boundaries or emit an SVG <code>&lt;path&gt;</code> with a quiet zone of at least 4 modules around the symbol perimeter.
+        </p>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <span><a href="/">← Back to Bastien Sulyan</a></span>
+      <span>
+        <a href="https://sunasty.com/qr/">Sunasty QR Tools</a> ·
+        <a href="https://github.com/bsulyan/sunasty-qr-scanner">GitHub Repository</a>
+      </span>
+    </footer>
+  </div>
+</body>
+</html>
