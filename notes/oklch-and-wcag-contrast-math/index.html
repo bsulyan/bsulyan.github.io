@@ -127,6 +127,18 @@ export function getContrastRatio(rgbA, rgbB) {
         <p>
           Design systems often export color tokens as W3C Design Token JSON files alongside visual regression snapshots. In the <a href="https://sunasty.com/dev/">Sunasty Developer Tools</a> collection, we pair the color picker with a client-side <a href="https://sunasty.com/json-formatter/">JSON Formatter and Validator</a> (see our note on <a href="https://sunasty.com/guides/format-json-online/">formatting and validating JSON locally</a>) and a pixel-level <a href="https://sunasty.com/image-compare/">Image Comparison slider and diff view</a> to inspect UI changes before deployment.
         </p>
+
+        <h2>6. Open-Source Reference Packages (<code>sunasty-color-math</code>)</h2>
+        <p>
+          The exact OKLCH conversion matrices and WCAG 2.1 contrast solvers used by the <a href="https://sunasty.com/color-picker/">Sunasty Color Picker</a> and <a href="https://sunasty.com/contrast-checker/">Contrast Checker</a> are published as zero-dependency MIT libraries across major ecosystems:
+          <a href="https://www.npmjs.com/package/sunasty-color-math">TypeScript / JavaScript (npm)</a>,
+          <a href="https://pypi.org/project/sunasty-color-math/">Python (PyPI)</a>,
+          <a href="https://crates.io/crates/sunasty-color-math">Rust (Crates.io)</a> &amp; <a href="https://docs.rs/sunasty-color-math/latest/sunasty_color_math/">API Reference on docs.rs</a>,
+          <a href="https://pkg.go.dev/github.com/bsulyan/sunasty-color-math-go">Go (pkg.go.dev)</a>,
+          <a href="https://packagist.org/packages/sunasty/color-math">PHP (Packagist)</a>, and
+          <a href="https://pub.dev/packages/sunasty_color_math">Dart / Flutter (pub.dev)</a> (<a href="https://pub.dev/publishers/sunasty.com">verified publisher sunasty.com</a>).
+          Full integration examples are also documented on <a href="https://sunasty-docs.readthedocs.io/en/latest/">Read the Docs</a>.
+        </p>
       </article>
     </main>
 
