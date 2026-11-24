@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pure JavaScript Code 128B/C, EAN-13 &amp; ITF-14 Vector SVG Barcode Encoding</title>
+  <meta name="description" content="Encoding dense Code 128 Subset C numeric pairs, computing GS1 Mod-10 and Mod-103 checksums, and emitting crisp standalone SVG bars without DOM APIs.">
+  <link rel="canonical" href="https://bsulyan.github.io/notes/code128-vector-svg-encoding/">
+  <link rel="stylesheet" href="/style.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "headline": "Pure JavaScript Code 128B/C, EAN-13, and ITF-14 Vector SVG Barcode Encoding",
+    "author": {
+      "@type": "Person",
+      "name": "Bastien Sulyan",
+      "url": "https://bsulyan.github.io/"
+    },
+    "datePublished": "2026-11-24",
+    "url": "https://bsulyan.github.io/notes/code128-vector-svg-encoding/"
+  }
+  </script>
+</head>
+<body>
+  <div class="container">
+    <header class="site-header">
+      <a href="/" class="site-title">Bastien Sulyan</a>
+      <nav class="site-nav" aria-label="Main navigation">
+        <a href="/#notes">All Notes</a>
+        <a href="/#projects">Projects</a>
+        <a href="https://github.com/bsulyan">GitHub</a>
+      </nav>
+    </header>
+
+    <main>
+      <article>
+        <h1>Pure JavaScript Code 128B/C, EAN-13, and ITF-14 Vector SVG Barcode Encoding</h1>
+        <p class="meta">By Bastien Sulyan · November 2026 · Vector Graphics &amp; Logistics</p>
+
+        <p>
+          Raster barcodes rendered onto an HTML5 Canvas blur when scaled inside PDF shipping labels or thermal printers. Generating standalone SVG vector rectangles directly from raw binary module bitstreams ensures sharp edge alignment at any DPI without requiring Canvas, DOM APIs, or external font files.
+        </p>
+        <p>
+          We packaged the encoder behind the <a href="https://sunasty.com/barcode-generator/">Sunasty Barcode Generator</a> and <a href="https://sunasty.com/csv-label-sheet/">CSV Label Sheet Builder</a> as the zero-dependency MIT library <a href="https://www.npmjs.com/package/sunasty-code128-svg"><code>sunasty-code128-svg</code></a> (<a href="https://jsr.io/@sunasty/code128-svg">JSR</a>).
+        </p>
+
+        <h2>1. Selecting Subset B vs. Dense Numeric Subset C</h2>
+        <p>
+          Code 128 supports printable ASCII characters via Start Code B (<code>104</code>), and double-density two-digit encoding via Start Code C (<code>105</code>). When an input string contains four or more even-count digits (<code>isCode128CText</code>), packing digit pairs <code>00..99</code> halves bar width while computing the weighted Mod-103 checksum across symbol positions:
+        </p>
+
+<pre><code>export function computeCode128Checksum(text) {
+  const { startSymbol, dataValues } = resolveCode128Payload(text);
+  let sum = startSymbol;
+  for (let i = 0; i &lt; dataValues.length; i += 1) {
+    sum += dataValues[i] * (i + 1);
+  }
+  return sum % 103;
+}</code></pre>
+
+        <h2>2. Merging Adjacent Bar Modules into Vector Segments</h2>
+        <p>
+          Instead of emitting one narrow SVG <code>&lt;rect&gt;</code> per 1-module bit, <code>modulesToBarSegments</code> run-length merges consecutive <code>1</code> modules into single crisp rectangles with exact integer X offsets, flanked by configurable <code>quietZone</code> padding and optional ITF-14 GS1 bearer frames:
+        </p>
+
+<pre><code>import { renderBarcodeSvg, parseBulkBarcodeText, buildBulkBarcodeZipEntries } from 'sunasty-code128-svg';
+
+const svg = renderBarcodeSvg('code128', 'ORD-2026-0042', {
+  moduleWidth: 2,
+  barHeight: 90,
+  quietZone: 11,
+  showText: true,
+});
+
+console.log(svg.svgWidth, svg.svgHeight);
+
+// Batch parse mixed symbologies from CSV or newline lists
+const batch = parseBulkBarcodeText('ean13,400638133393\nSKU-9981-A');
+const zipFiles = buildBulkBarcodeZipEntries(batch);</code></pre>
+
+        <h2>3. Related Label, QR &amp; Document Tools</h2>
+        <p>
+          Generate individual print-ready barcodes in the <a href="https://sunasty.com/barcode-generator/">Barcode Generator</a>, lay out multi-column shipping sheets from spreadsheets with the <a href="https://sunasty.com/csv-label-sheet/">CSV Label Sheet Tool</a>, or encode and decode 2D payloads with the <a href="https://sunasty.com/qr-code/">QR Generator</a> and <a href="https://sunasty.com/qr-scan/">QR Scanner</a>.
+        </p>
+
+        <h2>4. Open-Source Package Links</h2>
+        <p>
+          Available under the MIT license on <a href="https://www.npmjs.com/package/sunasty-code128-svg">npm</a>, <a href="https://jsr.io/@sunasty/code128-svg">JSR (@sunasty/code128-svg)</a>, and <a href="https://github.com/bsulyan/sunasty-code128-svg">GitHub</a>.
+        </p>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <span><a href="/">← Back to Bastien Sulyan</a></span>
+      <span>
+        <a href="https://sunasty.com/barcode-generator/">Sunasty Barcode Generator</a> ·
+        <a href="https://github.com/bsulyan/sunasty-code128-svg">GitHub Repository</a>
+      </span>
+    </footer>
+  </div>
+</body>
+</html>

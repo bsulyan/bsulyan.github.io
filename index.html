@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Bastien Sulyan — Independent Software Developer (Strasbourg)</title>
-  <meta name="description" content="Technical notes, browser-side file tools, and software projects by Bastien Sulyan, independent developer in Strasbourg and founder of Ulysan and Sunasty.">
+  <meta name="description" content="Technical notes, 233 browser-side file tools across 32 languages, and open-source software by Bastien Sulyan, founder of Ulysan and Sunasty.">
   <meta name="google-site-verification" content="NmgTToJHODULyre12SV4QZodJO1JFHPsGbyhVvtlxVw">
   <meta name="msvalidate.01" content="205670165C1AB01DEFBC25FAD3AEF97A">
   <link rel="canonical" href="https://bsulyan.github.io/">
@@ -24,7 +24,10 @@
     "sameAs": [
       "https://github.com/bsulyan",
       "https://ulysan.fr/",
-      "https://sunasty.com/"
+      "https://sunasty.com/",
+      "https://dev.to/bsulyan",
+      "https://jsr.io/@sunasty",
+      "https://www.npmjs.com/package/sunasty-color-math"
     ],
     "worksFor": {
       "@type": "Organization",
@@ -50,20 +53,38 @@
         <h1 id="intro-heading">Bastien Sulyan</h1>
         <p class="meta">Independent software developer in Strasbourg, France</p>
         <p>
-          I design and build static web software, client-side file utilities, and offline mobile applications.
+          I design and build static web software, client-side file utilities, browser extensions, and offline mobile applications.
           My work focuses on running binary document, media, and image pipelines directly inside the browser using Web Workers, WebAssembly, and native Web APIs so user files do not have to pass through remote servers.
         </p>
         <p>
-          I run <a href="https://ulysan.fr/">Ulysan</a>, an independent web and software studio in Strasbourg, and build <a href="https://sunasty.com/">Sunasty</a>, a collection of browser-side tools for PDF, image, audio, video, and developer workflows.
+          I run <a href="https://ulysan.fr/">Ulysan</a>, an independent web and software studio in Strasbourg, and build <a href="https://sunasty.com/">Sunasty</a>, a suite of 233 browser-side tools across 32 languages for PDF, image, audio, video, privacy, date, calculator, and developer workflows.
         </p>
       </section>
 
       <section id="notes" aria-labelledby="notes-heading">
         <h2 id="notes-heading">Technical Notes</h2>
         <p>
-          Implementation notes and reference code drawn from building client-side document, image, color, and audio utilities.
+          Implementation notes and reference code drawn from building client-side document, image, color, audio, network, and combinatorial utilities.
         </p>
         <ul class="note-list">
+          <li>
+            <a class="note-title" href="/notes/client-side-har-sanitization/">Whitelist HAR Sanitization in the Browser: Zero-Copy Redaction Without Secret Leaks</a>
+            <p class="note-summary">
+              Bounded structural JSON parsing, forensic location inventory, domain-filtered HAR 1.2 whitelist reconstruction, and timing-preserving waterfall exports (<code>sunasty-har-sanitizer</code>).
+            </p>
+          </li>
+          <li>
+            <a class="note-title" href="/notes/swiss-tournament-tiebreak-math/">Swiss Tournament Tiebreakers and Binomial Cut Math in JavaScript</a>
+            <p class="note-summary">
+              Expected win-loss field convolution with draws, cross-seeded playoff bracket generation, and deterministic Monte-Carlo OMW%/OOMW%/&Sigma;r&sup2; tiebreaker odds (<code>sunasty-tournament-math</code>).
+            </p>
+          </li>
+          <li>
+            <a class="note-title" href="/notes/code128-vector-svg-encoding/">Pure JavaScript Code 128B/C, EAN-13, and ITF-14 Vector SVG Barcode Encoding</a>
+            <p class="note-summary">
+              Automatic numeric Subset C packing, Mod-10 and Mod-103 checksum calculation, run-length bar segment merging, and standalone SVG generation without DOM APIs (<code>sunasty-code128-svg</code>).
+            </p>
+          </li>
           <li>
             <a class="note-title" href="/notes/client-side-pdf-processing/">Processing PDF Files in the Browser Without a Backend</a>
             <p class="note-summary">
@@ -101,9 +122,28 @@
         <h2 id="projects-heading">Projects &amp; Open-Source Tools</h2>
 
         <div class="project-block">
-          <h3><a href="https://sunasty.com/">Sunasty</a> — Browser-Side File Tools</h3>
+          <h3><a href="https://sunasty.com/">Sunasty</a> — 233 Browser-Side File &amp; Dev Tools</h3>
           <p>
-            Over 60 browser utilities that process files locally on the user's device: <a href="https://sunasty.com/pdf/">PDF tools</a> (<a href="https://sunasty.com/pdf-merge/">merge</a>, <a href="https://sunasty.com/pdf-compress/">compress</a>, <a href="https://sunasty.com/pdf-metadata/">metadata</a>, <a href="https://sunasty.com/pdf-deskew/">deskew</a>), <a href="https://sunasty.com/image/">image tools</a> (<a href="https://sunasty.com/exif-reader/">EXIF inspector</a>, <a href="https://sunasty.com/c2pa-reader/">C2PA reader</a>, <a href="https://sunasty.com/image-compress/">compression</a>), <a href="https://sunasty.com/audio/">audio</a> and <a href="https://sunasty.com/video/">video</a> utilities, <a href="https://sunasty.com/privacy-tools/">privacy checks</a>, and <a href="https://sunasty.com/dev/">developer tools</a>. Architecture &amp; integration guides are published on <a href="https://sunasty-docs.readthedocs.io/en/latest/">Read the Docs</a>, audio pipeline notes on <a href="https://dev.to/bsulyan/how-to-clean-up-podcast-and-remote-interview-audio-directly-in-the-browser-2k4b">DEV Community</a>, and the public listing on <a href="https://alternativeto.net/software/sunasty/about/">AlternativeTo</a>.
+            233 browser utilities across 32 languages running locally on the user's device: <a href="https://sunasty.com/pdf/">PDF tools</a> (<a href="https://sunasty.com/pdf-merge/">merge</a>, <a href="https://sunasty.com/pdf-compress/">compress</a>, <a href="https://sunasty.com/pdf-metadata/">metadata</a>, <a href="https://sunasty.com/pdf-deskew/">deskew</a>, <a href="https://sunasty.com/tcg-proxy-print/">TCG proxy print</a>), <a href="https://sunasty.com/image/">image tools</a> (<a href="https://sunasty.com/exif-reader/">EXIF inspector</a>, <a href="https://sunasty.com/c2pa-reader/">C2PA reader</a>, <a href="https://sunasty.com/image-compress/">compression</a>), <a href="https://sunasty.com/audio/">audio</a> and <a href="https://sunasty.com/video/">video</a> utilities, <a href="https://sunasty.com/privacy-tools/">privacy tools</a> (<a href="https://sunasty.com/har-sanitizer/">HAR sanitizer</a>), <a href="https://sunasty.com/dev/">developer tools</a> (<a href="https://sunasty.com/parquet-viewer/">Parquet</a> &amp; <a href="https://sunasty.com/sqlite-viewer/">SQLite viewers</a>, <a href="https://sunasty.com/barcode-generator/">Barcode generator</a>), and <a href="https://sunasty.com/tournament-calculator/">Swiss tournament math</a>. Documentation lives on <a href="https://sunasty-docs.readthedocs.io/en/latest/">Read the Docs</a>, articles on <a href="https://dev.to/bsulyan">DEV Community</a>, and verified listings on <a href="https://alternativeto.net/software/sunasty/about/">AlternativeTo</a> and <a href="https://www.saashub.com/sunasty">SaaSHub</a>.
+          </p>
+        </div>
+
+        <div class="project-block">
+          <h3><a href="https://jsr.io/@sunasty"><code>@sunasty/*</code> Open-Source TypeScript / JavaScript Libraries (npm &amp; JSR, MIT)</h3>
+          <p>
+            Five zero-dependency engines extracted from Sunasty tools and published on both npm and <a href="https://jsr.io/@sunasty">JSR</a>:
+            <a href="https://www.npmjs.com/package/sunasty-har-sanitizer"><code>sunasty-har-sanitizer</code></a> (<a href="https://jsr.io/@sunasty/har-sanitizer">JSR</a> · <a href="https://github.com/bsulyan/sunasty-har-sanitizer">GitHub</a>),
+            <a href="https://www.npmjs.com/package/sunasty-tournament-math"><code>sunasty-tournament-math</code></a> (<a href="https://jsr.io/@sunasty/tournament-math">JSR</a> · <a href="https://github.com/bsulyan/sunasty-tournament-math">GitHub</a>),
+            <a href="https://www.npmjs.com/package/sunasty-code128-svg"><code>sunasty-code128-svg</code></a> (<a href="https://jsr.io/@sunasty/code128-svg">JSR</a> · <a href="https://github.com/bsulyan/sunasty-code128-svg">GitHub</a>),
+            <a href="https://www.npmjs.com/package/sunasty-qr-payload"><code>sunasty-qr-payload</code></a> (<a href="https://jsr.io/@sunasty/qr-payload">JSR</a> · <a href="https://github.com/bsulyan/sunasty-qr-payload">GitHub</a>), and
+            <a href="https://www.npmjs.com/package/sunasty-color-math"><code>sunasty-color-math</code></a> (<a href="https://jsr.io/@sunasty/color-math">JSR</a> · <a href="https://pypi.org/project/sunasty-color-math/">PyPI</a> · <a href="https://crates.io/crates/sunasty-color-math">Crates.io</a> · <a href="https://docs.rs/sunasty-color-math/latest/sunasty_color_math/">docs.rs</a> · <a href="https://pkg.go.dev/github.com/bsulyan/sunasty-color-math-go">pkg.go.dev</a> · <a href="https://packagist.org/packages/sunasty/color-math">Packagist</a> · <a href="https://pub.dev/packages/sunasty_color_math">pub.dev</a> · <a href="https://github.com/bsulyan/sunasty-color-math">GitHub</a>).
+          </p>
+        </div>
+
+        <div class="project-block">
+          <h3><a href="https://github.com/bsulyan/sunasty-qr-scanner">Sunasty QR Scanner</a> &amp; <a href="https://github.com/bsulyan/sunasty-color-picker">Sunasty Color Picker</a> (Browser Extensions, MIT)</h3>
+          <p>
+            Zero-tracking Manifest V3 extensions: <a href="https://github.com/bsulyan/sunasty-qr-scanner">Sunasty QR Code Scanner &amp; Generator</a> on <a href="https://chromewebstore.google.com/detail/sunasty-qr-code-scanner-g/fbiighpklpogdbnhdapbiijcadhlijcb">Chrome Web Store</a>, <a href="https://addons.mozilla.org/en-US/firefox/addon/sunasty-qr-code-scanner-genera/">Firefox Add-ons (AMO)</a> (<a href="https://addons.mozilla.org/fr/firefox/addon/sunasty-qr-code-scanner-genera/">FR</a>), and <a href="https://microsoftedge.microsoft.com/addons/detail/sunasty-qr-code-scanner-generator/npbppaegpbeefpfaffjgphjecmgbngab">Microsoft Edge Add-ons</a>; companion <a href="https://github.com/bsulyan/sunasty-color-picker">Sunasty Color Picker &amp; OKLCH Eyedropper</a> for <a href="https://sunasty.com/color-picker/">Sunasty Web Color Picker</a> and <a href="https://sunasty.com/contrast-checker/">WCAG Contrast Checker</a>.
           </p>
         </div>
 
@@ -111,20 +151,6 @@
           <h3><a href="https://ulysan.fr/">Ulysan</a> — Web Studio &amp; Offline Mobile Games</h3>
           <p>
             Independent software studio based in Strasbourg building bespoke static web sites, custom business web applications, and ad-respectful offline mobile games such as <a href="https://ulysan.fr/solitaire/">Klondike Solitaire for Android</a>.
-          </p>
-        </div>
-
-        <div class="project-block">
-          <h3><a href="https://github.com/bsulyan/sunasty-qr-scanner">Sunasty QR Scanner</a> (Chrome, Firefox &amp; Edge Extension, MIT)</h3>
-          <p>
-            Manifest V3 browser extension published on the <a href="https://chromewebstore.google.com/detail/sunasty-qr-code-scanner-g/fbiighpklpogdbnhdapbiijcadhlijcb">Chrome Web Store</a>, <a href="https://addons.mozilla.org/en-US/firefox/addon/sunasty-qr-code-scanner-genera/">Firefox Add-ons (AMO)</a> (<a href="https://addons.mozilla.org/fr/firefox/addon/sunasty-qr-code-scanner-genera/">FR</a>), and <a href="https://microsoftedge.microsoft.com/addons/detail/sunasty-qr-code-scanner-generator/npbppaegpbeefpfaffjgphjecmgbngab">Microsoft Edge Add-ons</a> that scans QR codes from the active tab, images, or clipboard, decodes Wi-Fi and <code>otpauth://</code> payloads locally, and generates SVG/PNG codes. Companion to the <a href="https://sunasty.com/qr-scan/">Sunasty Web QR Scanner</a> and <a href="https://sunasty.com/qr-code/">QR Generator</a>, with its payload parser published on npm as <a href="https://www.npmjs.com/package/sunasty-qr-payload"><code>sunasty-qr-payload</code></a> (<a href="https://github.com/bsulyan/sunasty-qr-payload">GitHub</a>).
-          </p>
-        </div>
-
-        <div class="project-block">
-          <h3><a href="https://github.com/bsulyan/sunasty-color-picker">Sunasty Color Picker</a> &amp; <a href="https://www.npmjs.com/package/sunasty-color-math">sunasty-color-math</a> (MIT)</h3>
-          <p>
-            Manifest V3 eyedropper and zero-dependency color conversion library (<a href="https://www.npmjs.com/package/sunasty-color-math">npm</a> · <a href="https://pypi.org/project/sunasty-color-math/">PyPI</a> · <a href="https://crates.io/crates/sunasty-color-math">Crates.io</a> · <a href="https://docs.rs/sunasty-color-math/latest/sunasty_color_math/">docs.rs</a> · <a href="https://pkg.go.dev/github.com/bsulyan/sunasty-color-math-go">pkg.go.dev</a> · <a href="https://packagist.org/packages/sunasty/color-math">Packagist</a> · <a href="https://pub.dev/packages/sunasty_color_math">pub.dev</a> / <a href="https://pub.dev/publishers/sunasty.com">publisher</a> · <a href="https://github.com/bsulyan/sunasty-color-math">GitHub</a>) supporting HEX, RGB, HSL, and OKLCH, with live WCAG 2.1 contrast checks and accessible shade suggestions. Companion to the <a href="https://sunasty.com/color-picker/">Sunasty Web Color Picker</a> and <a href="https://sunasty.com/contrast-checker/">WCAG Contrast Checker</a>.
           </p>
         </div>
       </section>

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Whitelist HAR Sanitization in the Browser: Zero-Copy Redaction Without Secret Leaks</title>
+  <meta name="description" content="How to sanitize HAR 1.2 HTTP archives client-side using structural JSON validation, domain allowlists, and strict whitelist reconstruction.">
+  <link rel="canonical" href="https://bsulyan.github.io/notes/client-side-har-sanitization/">
+  <link rel="stylesheet" href="/style.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "headline": "Whitelist HAR Sanitization in the Browser: Zero-Copy Redaction Without Secret Leaks",
+    "author": {
+      "@type": "Person",
+      "name": "Bastien Sulyan",
+      "url": "https://bsulyan.github.io/"
+    },
+    "datePublished": "2026-11-24",
+    "url": "https://bsulyan.github.io/notes/client-side-har-sanitization/"
+  }
+  </script>
+</head>
+<body>
+  <div class="container">
+    <header class="site-header">
+      <a href="/" class="site-title">Bastien Sulyan</a>
+      <nav class="site-nav" aria-label="Main navigation">
+        <a href="/#notes">All Notes</a>
+        <a href="/#projects">Projects</a>
+        <a href="https://github.com/bsulyan">GitHub</a>
+      </nav>
+    </header>
+
+    <main>
+      <article>
+        <h1>Whitelist HAR Sanitization in the Browser: Zero-Copy Redaction Without Secret Leaks</h1>
+        <p class="meta">By Bastien Sulyan · November 2026 · Security &amp; Network Forensics</p>
+
+        <p>
+          HTTP Archive (HAR 1.2) files exported from browser DevTools routinely contain live <code>Authorization</code> bearer tokens, session cookies, CSRF tokens, signed S3 URLs, query parameters, internal server IP addresses, and JSON response payloads. Naive blocklist scrubbers fail whenever an API introduces non-standard auth headers (such as <code>x-csrf-custom</code>) or custom vendor keys attached to entries.
+        </p>
+        <p>
+          For the client-side <a href="https://sunasty.com/har-sanitizer/">Sunasty HAR Sanitizer</a> and <a href="https://sunasty.com/har-analyzer/">HAR Analyzer</a>, we replaced regex-based blocklisting with full <strong>whitelist reconstruction</strong> packaged as the open-source MIT library <a href="https://www.npmjs.com/package/sunasty-har-sanitizer"><code>sunasty-har-sanitizer</code></a> (also available on <a href="https://jsr.io/@sunasty/har-sanitizer">JSR</a>).
+        </p>
+
+        <h2>1. Bounded Structural JSON Validation Before Parsing</h2>
+        <p>
+          Untrusted HAR archives can contain deeply nested JSON payloads, duplicate property shadowing (where two different parsers keep different values for the same key), or malformed numeric exponents. Before <code>parseHarDocument</code> inspects a trace, <code>parseExactJson</code> checks structural invariants within bounded limits (<code>30 MiB</code> HAR size, up to <code>20,000</code> entries, max JSON depth <code>60</code>):
+        </p>
+
+<pre><code>import { parseExactJson, JSON_LIMITS } from 'sunasty-har-sanitizer/json-exact.js';
+
+// Rejects duplicate keys, depth > 60, or > 1,000,000 nodes
+parseExactJson(rawHarText, {
+  ...JSON_LIMITS,
+  bytes: 30 * 1024 * 1024,
+  depth: 60,
+  nodes: 1000000,
+});</code></pre>
+
+        <h2>2. Forensic Inventory Across Unknown and Vendor Fields</h2>
+        <p>
+          Before stripping anything, <code>inspectHar(harText)</code> walks every entry to map request domains, detect retainable plain-text request or response bodies (capped at <code>1 MiB</code> decoded), and catalog up to 1,000 sensitive field paths across URLs, headers, cookies, post data, IP addresses, and unexpected keys under <code>/[unknown]</code>.
+        </p>
+
+        <h2>3. Strict Whitelist Reconstruction</h2>
+        <p>
+          Instead of mutating or cloning the original objects with <code>Object.assign</code> or object spread, <code>sanitizeHar(text, policy)</code> constructs fresh HAR 1.2 entry objects containing only explicitly allowed fields:
+        </p>
+
+<pre><code>import { inspectHar, buildSafeDefaultPolicy, sanitizeHar } from 'sunasty-har-sanitizer';
+
+const inspection = inspectHar(harJsonString);
+const policy = buildSafeDefaultPolicy(harJsonString, {
+  domains: inspection.domains.map((d) => d.domain),
+  retainPaths: true,
+  retainTimes: false,
+});
+
+const result = sanitizeHar(harJsonString, policy);
+// result.har is a freshly built HAR 1.2 document
+// result.report.removals documents every dropped path and reason
+console.log(result.report.entriesAfter, result.report.removals.length);</code></pre>
+
+        <ul>
+          <li><strong>Headers &amp; Cookies:</strong> Rebuilt as empty arrays <code>[]</code> by default, preventing custom auth headers from leaking.</li>
+          <li><strong>Query Strings &amp; Redirect URLs:</strong> Stripped at URL origin/path level via <code>URL</code> parsing; cross-domain <code>redirectURL</code> values outside the selected domain policy are dropped.</li>
+          <li><strong>Timestamps &amp; Waterfall Summary:</strong> When <code>retainTimes</code> is false, timestamps are shifted relative to the earliest request baseline so debuggers preserve waterfall latency (<code>computeWaterfallSummary</code>) and cURL exports (<code>generateCurlCommand</code>) without revealing wall-clock user activity.</li>
+        </ul>
+
+        <h2>4. Related Privacy &amp; Developer Utilities</h2>
+        <p>
+          Pair HAR redaction with the local <a href="https://sunasty.com/json-diff/">JSON Diff tool</a>, <a href="https://sunasty.com/email-header-analyzer/">Email Header Analyzer</a>, <a href="https://sunasty.com/eml-viewer/">EML Viewer</a>, and <a href="https://sunasty.com/pii-redactor/">PII Redactor</a> inside the <a href="https://sunasty.com/dev/">Sunasty Developer Tools</a> suite.
+        </p>
+
+        <h2>5. Open-Source Package &amp; CLI Links</h2>
+        <p>
+          The MIT library and CLI (<code>npx sunasty-har-sanitizer trace.har -o clean.har</code>) are published on <a href="https://www.npmjs.com/package/sunasty-har-sanitizer">npm</a>, <a href="https://jsr.io/@sunasty/har-sanitizer">JSR (@sunasty/har-sanitizer)</a>, and <a href="https://github.com/bsulyan/sunasty-har-sanitizer">GitHub</a>.
+        </p>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <span><a href="/">← Back to Bastien Sulyan</a></span>
+      <span>
+        <a href="https://sunasty.com/har-sanitizer/">Sunasty HAR Sanitizer</a> ·
+        <a href="https://github.com/bsulyan/sunasty-har-sanitizer">GitHub Repository</a>
+      </span>
+    </footer>
+  </div>
+</body>
+</html>

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Swiss Tournament Tiebreakers &amp; Binomial Cut Math in JavaScript</title>
+  <meta name="description" content="Computing Swiss round counts, binomial win-loss field projections, cross-seeded brackets, and deterministic Monte-Carlo OMW%/OOMW% tiebreaker odds.">
+  <link rel="canonical" href="https://bsulyan.github.io/notes/swiss-tournament-tiebreak-math/">
+  <link rel="stylesheet" href="/style.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "headline": "Swiss Tournament Tiebreakers and Binomial Cut Math in JavaScript",
+    "author": {
+      "@type": "Person",
+      "name": "Bastien Sulyan",
+      "url": "https://bsulyan.github.io/"
+    },
+    "datePublished": "2026-11-24",
+    "url": "https://bsulyan.github.io/notes/swiss-tournament-tiebreak-math/"
+  }
+  </script>
+</head>
+<body>
+  <div class="container">
+    <header class="site-header">
+      <a href="/" class="site-title">Bastien Sulyan</a>
+      <nav class="site-nav" aria-label="Main navigation">
+        <a href="/#notes">All Notes</a>
+        <a href="/#projects">Projects</a>
+        <a href="https://github.com/bsulyan">GitHub</a>
+      </nav>
+    </header>
+
+    <main>
+      <article>
+        <h1>Swiss Tournament Tiebreakers and Binomial Cut Math in JavaScript</h1>
+        <p class="meta">By Bastien Sulyan · November 2026 · Algorithms &amp; Tournament Design</p>
+
+        <p>
+          In large tabletop and esports tournaments, judges and players constantly ask two questions during Round 4: how many undefeated and X-2 players will finish in the Top 8 bubble, and what are the actual odds that a specific win-loss sequence (such as losing in Round 1 versus losing in the final round) survives Opponent Match Win percentage (OMW%) tiebreakers?
+        </p>
+        <p>
+          We extracted the pure mathematical engine behind the <a href="https://sunasty.com/tournament-calculator/">Sunasty Tournament Calculator</a> and <a href="https://sunasty.com/swiss-tournament-generator/">Swiss Tournament Generator</a> into the MIT package <a href="https://www.npmjs.com/package/sunasty-tournament-math"><code>sunasty-tournament-math</code></a> (<a href="https://jsr.io/@sunasty/tournament-math">JSR</a>).
+        </p>
+
+        <h2>1. Expected Win-Loss Field via Exact Binomial &amp; Draw Convolution</h2>
+        <p>
+          When no intentional draws or double losses occur, <code>computeStructure</code> evaluates the exact binomial distribution across <code>R</code> Swiss rounds. When <code>drawRate</code> or <code>doubleLossRate</code> is non-zero, <code>expectedFieldWithDraws</code> iterates over all valid <code>(wins, draws, losses)</code> triplets so points-based buckets reflect tie-adjusted standings:
+        </p>
+
+<pre><code>import { getPreset, computeStructure, exportBracketText } from 'sunasty-tournament-math';
+
+const mtg = getPreset('mtg');
+const structure = computeStructure(mtg, 64, undefined, { drawRate: 0.05 });
+
+console.log(structure.rounds, structure.cutSize); // 6 Swiss rounds, Top 8
+console.log(structure.cutLineWins);               // Minimum wins in Top Cut
+console.log(exportBracketText(structure.cutSize));</code></pre>
+
+        <p>
+          Because standard playoff pairings must ensure the #1 and #2 seeds cannot meet before the finals, <code>buildCrossSeedOrder</code> unfolds pairings recursively via <code>s -&gt; [s, 2n + 1 - s]</code>, yielding <code>[1, 8, 4, 5, 2, 7, 3, 6]</code> for Top 8 and assigning <code>BYE</code> slots when a cut size is not an exact power of two.
+        </p>
+
+        <h2>2. Why Loss Timing Changes Tiebreaker Survival (OMW%, OOMW%, &Sigma;r&sup2;)</h2>
+        <p>
+          Swiss pairings match players with similar current records each round. Winning early rounds pairs you into stronger undefeated opponents in middle rounds, raising your OMW% floor (clamped per tournament floor, typically <code>0.33</code> in Magic). Conversely, Yu-Gi-Oh! regional events break ties by opponent strength and sum of squared loss round numbers (<code>lossRoundSquares</code>), rewarding late losses over early ones.
+        </p>
+
+<pre><code>import { getPreset, simulate, probRankAtMost } from 'sunasty-tournament-math';
+
+const mtg = getPreset('mtg');
+const earlyLoss = simulate({
+  preset: mtg,
+  players: 64,
+  drawRate: 0.05,
+  doubleLossRate: 0,
+  results: ['L', 'W', 'W', 'W', 'W', 'W'],
+  iterations: 300,
+});
+
+const lateLoss = simulate({
+  preset: mtg,
+  players: 64,
+  drawRate: 0.05,
+  doubleLossRate: 0,
+  results: ['W', 'W', 'W', 'W', 'W', 'L'],
+  iterations: 300,
+});
+
+console.log('Top 8 odds:', probRankAtMost(earlyLoss, 8), probRankAtMost(lateLoss, 8));</code></pre>
+
+        <p>
+          By fixing the PRNG seed via Mulberry32 inside <code>simulate</code>, tournament organizers can compare early-loss versus late-loss sequences reproducibly up to <code>MAX_SIMULATED_PLAYERS = 4096</code>.
+        </p>
+
+        <h2>3. Related Tournament &amp; Gaming Tools</h2>
+        <p>
+          Explore the complete live suite on Sunasty: <a href="https://sunasty.com/tournament-calculator/">Swiss Cut &amp; Tiebreak Calculator</a>, <a href="https://sunasty.com/tournament-bracket-generator/">Playoff Bracket Generator</a>, <a href="https://sunasty.com/round-robin-generator/">Round Robin Scheduler</a>, <a href="https://sunasty.com/elo-calculator/">Elo Rating Calculator</a>, <a href="https://sunasty.com/tcg-hypergeometric-calculator/">Hypergeometric Draw Calculator</a>, and <a href="https://sunasty.com/tcg-proxy-print/">Offline TCG Proxy Print Studio</a>.
+        </p>
+
+        <h2>4. Open-Source Package Links</h2>
+        <p>
+          Published under the MIT license on <a href="https://www.npmjs.com/package/sunasty-tournament-math">npm</a>, <a href="https://jsr.io/@sunasty/tournament-math">JSR (@sunasty/tournament-math)</a>, and <a href="https://github.com/bsulyan/sunasty-tournament-math">GitHub</a>.
+        </p>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <span><a href="/">← Back to Bastien Sulyan</a></span>
+      <span>
+        <a href="https://sunasty.com/tournament-calculator/">Sunasty Tournament Calculator</a> ·
+        <a href="https://github.com/bsulyan/sunasty-tournament-math">GitHub Repository</a>
+      </span>
+    </footer>
+  </div>
+</body>
+</html>
