@@ -42,7 +42,7 @@
           HTTP Archive (HAR 1.2) files exported from browser DevTools routinely contain live <code>Authorization</code> bearer tokens, session cookies, CSRF tokens, signed S3 URLs, query parameters, internal server IP addresses, and JSON response payloads. Naive blocklist scrubbers fail whenever an API introduces non-standard auth headers (such as <code>x-csrf-custom</code>) or custom vendor keys attached to entries.
         </p>
         <p>
-          For the client-side <a href="https://sunasty.com/har-sanitizer/">Sunasty HAR Sanitizer</a> and <a href="https://sunasty.com/har-analyzer/">HAR Analyzer</a>, we replaced regex-based blocklisting with full <strong>whitelist reconstruction</strong> packaged as the open-source MIT library <a href="https://www.npmjs.com/package/sunasty-har-sanitizer"><code>sunasty-har-sanitizer</code></a> (also available on <a href="https://jsr.io/@sunasty/har-sanitizer">JSR</a>).
+          For the client-side <a href="https://sunasty.com/har-sanitizer/">Sunasty HAR Sanitizer</a> and <a href="https://sunasty.com/har-analyzer/">HAR Analyzer</a>, we replaced regex-based blocklisting with full <strong>whitelist reconstruction</strong> packaged as the open-source MIT library <a href="https://www.npmjs.com/package/har-clean"><code>har-clean</code></a> (also available on <a href="https://jsr.io/@sunasty/har-sanitizer">JSR as <code>@sunasty/har-sanitizer</code></a>).
         </p>
 
         <h2>1. Bounded Structural JSON Validation Before Parsing</h2>
@@ -50,7 +50,7 @@
           Untrusted HAR archives can contain deeply nested JSON payloads, duplicate property shadowing (where two different parsers keep different values for the same key), or malformed numeric exponents. Before <code>parseHarDocument</code> inspects a trace, <code>parseExactJson</code> checks structural invariants within bounded limits (<code>30 MiB</code> HAR size, up to <code>20,000</code> entries, max JSON depth <code>60</code>):
         </p>
 
-<pre><code>import { parseExactJson, JSON_LIMITS } from 'sunasty-har-sanitizer/json-exact.js';
+<pre><code>import { parseExactJson, JSON_LIMITS } from 'har-clean/json-exact.js';
 
 // Rejects duplicate keys, depth > 60, or > 1,000,000 nodes
 parseExactJson(rawHarText, {
@@ -70,7 +70,7 @@ parseExactJson(rawHarText, {
           Instead of mutating or cloning the original objects with <code>Object.assign</code> or object spread, <code>sanitizeHar(text, policy)</code> constructs fresh HAR 1.2 entry objects containing only explicitly allowed fields:
         </p>
 
-<pre><code>import { inspectHar, buildSafeDefaultPolicy, sanitizeHar } from 'sunasty-har-sanitizer';
+<pre><code>import { inspectHar, buildSafeDefaultPolicy, sanitizeHar } from 'har-clean';
 
 const inspection = inspectHar(harJsonString);
 const policy = buildSafeDefaultPolicy(harJsonString, {
@@ -97,7 +97,7 @@ console.log(result.report.entriesAfter, result.report.removals.length);</code></
 
         <h2>5. Open-Source Package &amp; CLI Links</h2>
         <p>
-          The MIT library and CLI (<code>npx sunasty-har-sanitizer trace.har -o clean.har</code>) are published on <a href="https://www.npmjs.com/package/sunasty-har-sanitizer">npm</a>, <a href="https://jsr.io/@sunasty/har-sanitizer">JSR (@sunasty/har-sanitizer)</a>, and <a href="https://github.com/bsulyan/sunasty-har-sanitizer">GitHub</a>.
+          The MIT library and CLI (<code>npx har-clean trace.har -o clean.har</code>) are published on <a href="https://www.npmjs.com/package/har-clean">npm (har-clean)</a>, <a href="https://jsr.io/@sunasty/har-sanitizer">JSR (@sunasty/har-sanitizer)</a>, and <a href="https://github.com/bsulyan/sunasty-har-sanitizer">GitHub</a>.
         </p>
       </article>
     </main>

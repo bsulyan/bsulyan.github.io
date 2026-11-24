@@ -42,7 +42,7 @@
           In large tabletop and esports tournaments, judges and players constantly ask two questions during Round 4: how many undefeated and X-2 players will finish in the Top 8 bubble, and what are the actual odds that a specific win-loss sequence (such as losing in Round 1 versus losing in the final round) survives Opponent Match Win percentage (OMW%) tiebreakers?
         </p>
         <p>
-          We extracted the pure mathematical engine behind the <a href="https://sunasty.com/tournament-calculator/">Sunasty Tournament Calculator</a> and <a href="https://sunasty.com/swiss-tournament-generator/">Swiss Tournament Generator</a> into the MIT package <a href="https://www.npmjs.com/package/sunasty-tournament-math"><code>sunasty-tournament-math</code></a> (<a href="https://jsr.io/@sunasty/tournament-math">JSR</a>).
+          We extracted the pure mathematical engine behind the <a href="https://sunasty.com/tournament-calculator/">Sunasty Tournament Calculator</a> and <a href="https://sunasty.com/swiss-tournament-generator/">Swiss Tournament Generator</a> into the MIT package <a href="https://www.npmjs.com/package/swiss-math"><code>swiss-math</code></a> (<a href="https://jsr.io/@sunasty/tournament-math">JSR</a>).
         </p>
 
         <h2>1. Expected Win-Loss Field via Exact Binomial &amp; Draw Convolution</h2>
@@ -50,7 +50,7 @@
           When no intentional draws or double losses occur, <code>computeStructure</code> evaluates the exact binomial distribution across <code>R</code> Swiss rounds. When <code>drawRate</code> or <code>doubleLossRate</code> is non-zero, <code>expectedFieldWithDraws</code> iterates over all valid <code>(wins, draws, losses)</code> triplets so points-based buckets reflect tie-adjusted standings:
         </p>
 
-<pre><code>import { getPreset, computeStructure, exportBracketText } from 'sunasty-tournament-math';
+<pre><code>import { getPreset, computeStructure, exportBracketText } from 'swiss-math';
 
 const mtg = getPreset('mtg');
 const structure = computeStructure(mtg, 64, undefined, { drawRate: 0.05 });
@@ -68,7 +68,7 @@ console.log(exportBracketText(structure.cutSize));</code></pre>
           Swiss pairings match players with similar current records each round. Winning early rounds pairs you into stronger undefeated opponents in middle rounds, raising your OMW% floor (clamped per tournament floor, typically <code>0.33</code> in Magic). Conversely, Yu-Gi-Oh! regional events break ties by opponent strength and sum of squared loss round numbers (<code>lossRoundSquares</code>), rewarding late losses over early ones.
         </p>
 
-<pre><code>import { getPreset, simulate, probRankAtMost } from 'sunasty-tournament-math';
+<pre><code>import { getPreset, simulate, probRankAtMost } from 'swiss-math';
 
 const mtg = getPreset('mtg');
 const earlyLoss = simulate({
@@ -102,7 +102,7 @@ console.log('Top 8 odds:', probRankAtMost(earlyLoss, 8), probRankAtMost(lateLoss
 
         <h2>4. Open-Source Package Links</h2>
         <p>
-          Published under the MIT license on <a href="https://www.npmjs.com/package/sunasty-tournament-math">npm</a>, <a href="https://jsr.io/@sunasty/tournament-math">JSR (@sunasty/tournament-math)</a>, and <a href="https://github.com/bsulyan/sunasty-tournament-math">GitHub</a>.
+          Published under the MIT license on <a href="https://www.npmjs.com/package/swiss-math">npm (swiss-math)</a>, <a href="https://jsr.io/@sunasty/tournament-math">JSR (@sunasty/tournament-math)</a>, and <a href="https://github.com/bsulyan/sunasty-tournament-math">GitHub</a>.
         </p>
       </article>
     </main>

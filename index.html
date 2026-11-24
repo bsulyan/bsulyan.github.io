@@ -27,7 +27,11 @@
       "https://sunasty.com/",
       "https://dev.to/bsulyan",
       "https://jsr.io/@sunasty",
-      "https://www.npmjs.com/package/sunasty-color-math"
+      "https://www.npmjs.com/package/oklch-wcag",
+      "https://www.npmjs.com/package/qr-payload-parser",
+      "https://www.npmjs.com/package/har-clean",
+      "https://www.npmjs.com/package/swiss-math",
+      "https://www.npmjs.com/package/barcode128-svg"
     ],
     "worksFor": {
       "@type": "Organization",
@@ -70,19 +74,19 @@
           <li>
             <a class="note-title" href="/notes/client-side-har-sanitization/">Whitelist HAR Sanitization in the Browser: Zero-Copy Redaction Without Secret Leaks</a>
             <p class="note-summary">
-              Bounded structural JSON parsing, forensic location inventory, domain-filtered HAR 1.2 whitelist reconstruction, and timing-preserving waterfall exports (<code>sunasty-har-sanitizer</code>).
+              Bounded structural JSON parsing, forensic location inventory, domain-filtered HAR 1.2 whitelist reconstruction, and timing-preserving waterfall exports (<code>har-clean</code> / <code>@sunasty/har-sanitizer</code>).
             </p>
           </li>
           <li>
             <a class="note-title" href="/notes/swiss-tournament-tiebreak-math/">Swiss Tournament Tiebreakers and Binomial Cut Math in JavaScript</a>
             <p class="note-summary">
-              Expected win-loss field convolution with draws, cross-seeded playoff bracket generation, and deterministic Monte-Carlo OMW%/OOMW%/&Sigma;r&sup2; tiebreaker odds (<code>sunasty-tournament-math</code>).
+              Expected win-loss field convolution with draws, cross-seeded playoff bracket generation, and deterministic Monte-Carlo OMW%/OOMW%/&Sigma;r&sup2; tiebreaker odds (<code>swiss-math</code> / <code>@sunasty/tournament-math</code>).
             </p>
           </li>
           <li>
             <a class="note-title" href="/notes/code128-vector-svg-encoding/">Pure JavaScript Code 128B/C, EAN-13, and ITF-14 Vector SVG Barcode Encoding</a>
             <p class="note-summary">
-              Automatic numeric Subset C packing, Mod-10 and Mod-103 checksum calculation, run-length bar segment merging, and standalone SVG generation without DOM APIs (<code>sunasty-code128-svg</code>).
+              Automatic numeric Subset C packing, Mod-10 and Mod-103 checksum calculation, run-length bar segment merging, and standalone SVG generation without DOM APIs (<code>barcode128-svg</code> / <code>@sunasty/code128-svg</code>).
             </p>
           </li>
           <li>
@@ -129,14 +133,14 @@
         </div>
 
         <div class="project-block">
-          <h3><a href="https://jsr.io/@sunasty"><code>@sunasty/*</code></a> Open-Source TypeScript / JavaScript Libraries (npm &amp; JSR, MIT)</h3>
+          <h3><a href="https://jsr.io/@sunasty"><code>@sunasty/*</code></a> &amp; Neutral Open-Source JavaScript / TypeScript Libraries (npm &amp; JSR, MIT)</h3>
           <p>
-            Five zero-dependency engines extracted from Sunasty tools and published on both npm and <a href="https://jsr.io/@sunasty">JSR</a>:
-            <a href="https://www.npmjs.com/package/sunasty-har-sanitizer"><code>sunasty-har-sanitizer</code></a> (<a href="https://jsr.io/@sunasty/har-sanitizer">JSR</a> · <a href="https://github.com/bsulyan/sunasty-har-sanitizer">GitHub</a>),
-            <a href="https://www.npmjs.com/package/sunasty-tournament-math"><code>sunasty-tournament-math</code></a> (<a href="https://jsr.io/@sunasty/tournament-math">JSR</a> · <a href="https://github.com/bsulyan/sunasty-tournament-math">GitHub</a>),
-            <a href="https://www.npmjs.com/package/sunasty-code128-svg"><code>sunasty-code128-svg</code></a> (<a href="https://jsr.io/@sunasty/code128-svg">JSR</a> · <a href="https://github.com/bsulyan/sunasty-code128-svg">GitHub</a>),
-            <a href="https://www.npmjs.com/package/sunasty-qr-payload"><code>sunasty-qr-payload</code></a> (<a href="https://jsr.io/@sunasty/qr-payload">JSR</a> · <a href="https://github.com/bsulyan/sunasty-qr-payload">GitHub</a>), and
-            <a href="https://www.npmjs.com/package/sunasty-color-math"><code>sunasty-color-math</code></a> (<a href="https://jsr.io/@sunasty/color-math">JSR</a> · <a href="https://pypi.org/project/sunasty-color-math/">PyPI</a> · <a href="https://crates.io/crates/sunasty-color-math">Crates.io</a> · <a href="https://docs.rs/sunasty-color-math/latest/sunasty_color_math/">docs.rs</a> · <a href="https://pkg.go.dev/github.com/bsulyan/sunasty-color-math-go">pkg.go.dev</a> · <a href="https://packagist.org/packages/sunasty/color-math">Packagist</a> · <a href="https://pub.dev/packages/sunasty_color_math">pub.dev</a> · <a href="https://github.com/bsulyan/sunasty-color-math">GitHub</a>).
+            Five zero-dependency engines extracted from Sunasty tools and published on npm and <a href="https://jsr.io/@sunasty">JSR</a>:
+            <a href="https://www.npmjs.com/package/har-clean"><code>har-clean</code></a> (<a href="https://jsr.io/@sunasty/har-sanitizer">JSR</a> · <a href="https://github.com/bsulyan/sunasty-har-sanitizer">GitHub</a>),
+            <a href="https://www.npmjs.com/package/swiss-math"><code>swiss-math</code></a> (<a href="https://jsr.io/@sunasty/tournament-math">JSR</a> · <a href="https://github.com/bsulyan/sunasty-tournament-math">GitHub</a>),
+            <a href="https://www.npmjs.com/package/barcode128-svg"><code>barcode128-svg</code></a> (<a href="https://jsr.io/@sunasty/code128-svg">JSR</a> · <a href="https://github.com/bsulyan/sunasty-code128-svg">GitHub</a>),
+            <a href="https://www.npmjs.com/package/qr-payload-parser"><code>qr-payload-parser</code></a> (<a href="https://jsr.io/@sunasty/qr-payload">JSR</a> · <a href="https://github.com/bsulyan/sunasty-qr-payload">GitHub</a>), and
+            <a href="https://www.npmjs.com/package/oklch-wcag"><code>oklch-wcag</code></a> (<a href="https://jsr.io/@sunasty/color-math">JSR</a> · <a href="https://pypi.org/project/sunasty-color-math/">PyPI</a> · <a href="https://crates.io/crates/sunasty-color-math">Crates.io</a> · <a href="https://docs.rs/sunasty-color-math/latest/sunasty_color_math/">docs.rs</a> · <a href="https://pkg.go.dev/github.com/bsulyan/sunasty-color-math-go">pkg.go.dev</a> · <a href="https://packagist.org/packages/sunasty/color-math">Packagist</a> · <a href="https://pub.dev/packages/sunasty_color_math">pub.dev</a> · <a href="https://github.com/bsulyan/sunasty-color-math">GitHub</a>).
           </p>
         </div>
 

@@ -42,7 +42,7 @@
           Raster barcodes rendered onto an HTML5 Canvas blur when scaled inside PDF shipping labels or thermal printers. Generating standalone SVG vector rectangles directly from raw binary module bitstreams ensures sharp edge alignment at any DPI without requiring Canvas, DOM APIs, or external font files.
         </p>
         <p>
-          We packaged the encoder behind the <a href="https://sunasty.com/barcode-generator/">Sunasty Barcode Generator</a> and <a href="https://sunasty.com/csv-label-sheet/">CSV Label Sheet Builder</a> as the zero-dependency MIT library <a href="https://www.npmjs.com/package/sunasty-code128-svg"><code>sunasty-code128-svg</code></a> (<a href="https://jsr.io/@sunasty/code128-svg">JSR</a>).
+          We packaged the encoder behind the <a href="https://sunasty.com/barcode-generator/">Sunasty Barcode Generator</a> and <a href="https://sunasty.com/csv-label-sheet/">CSV Label Sheet Builder</a> as the zero-dependency MIT library <a href="https://www.npmjs.com/package/barcode128-svg"><code>barcode128-svg</code></a> (<a href="https://jsr.io/@sunasty/code128-svg">JSR</a>).
         </p>
 
         <h2>1. Selecting Subset B vs. Dense Numeric Subset C</h2>
@@ -64,7 +64,7 @@
           Instead of emitting one narrow SVG <code>&lt;rect&gt;</code> per 1-module bit, <code>modulesToBarSegments</code> run-length merges consecutive <code>1</code> modules into single crisp rectangles with exact integer X offsets, flanked by configurable <code>quietZone</code> padding and optional ITF-14 GS1 bearer frames:
         </p>
 
-<pre><code>import { renderBarcodeSvg, parseBulkBarcodeText, buildBulkBarcodeZipEntries } from 'sunasty-code128-svg';
+<pre><code>import { renderBarcodeSvg, parseBulkBarcodeText, buildBulkBarcodeZipEntries } from 'barcode128-svg';
 
 const svg = renderBarcodeSvg('code128', 'ORD-2026-0042', {
   moduleWidth: 2,
@@ -86,7 +86,7 @@ const zipFiles = buildBulkBarcodeZipEntries(batch);</code></pre>
 
         <h2>4. Open-Source Package Links</h2>
         <p>
-          Available under the MIT license on <a href="https://www.npmjs.com/package/sunasty-code128-svg">npm</a>, <a href="https://jsr.io/@sunasty/code128-svg">JSR (@sunasty/code128-svg)</a>, and <a href="https://github.com/bsulyan/sunasty-code128-svg">GitHub</a>.
+          Available under the MIT license on <a href="https://www.npmjs.com/package/barcode128-svg">npm (barcode128-svg)</a>, <a href="https://jsr.io/@sunasty/code128-svg">JSR (@sunasty/code128-svg)</a>, and <a href="https://github.com/bsulyan/sunasty-code128-svg">GitHub</a>.
         </p>
       </article>
     </main>
