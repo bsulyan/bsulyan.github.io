@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Deterministic JSON Schema Inference &amp; Multi-Language Type Generation in the Browser</title>
+  <meta name="description" content="Inferring structural AST schemas across heterogeneous JSON arrays in TypeScript to emit interfaces, Zod schemas, JSON Schema 2020-12, Go structs, Rust Serde, and Pydantic v2 models client-side.">
+  <link rel="canonical" href="https://bsulyan.github.io/notes/deterministic-json-to-typescript-inference/">
+  <link rel="stylesheet" href="/style.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "headline": "Deterministic JSON Schema Inference & Multi-Language Type Generation in the Browser",
+    "author": {
+      "@type": "Person",
+      "name": "Bastien Sulyan",
+      "url": "https://bsulyan.github.io/"
+    },
+    "datePublished": "2026-11-25",
+    "url": "https://bsulyan.github.io/notes/deterministic-json-to-typescript-inference/"
+  }
+  </script>
+</head>
+<body>
+  <div class="container">
+    <header class="site-header">
+      <a href="/" class="site-title">Bastien Sulyan</a>
+      <nav class="site-nav" aria-label="Main navigation">
+        <a href="/#notes">All Notes</a>
+        <a href="/#projects">Projects</a>
+        <a href="https://github.com/bsulyan">GitHub</a>
+      </nav>
+    </header>
+
+    <main>
+      <article>
+        <h1>Deterministic JSON Schema Inference &amp; Multi-Language Type Generation in the Browser</h1>
+        <p class="meta">By Bastien Sulyan · November 2026 · Type Systems &amp; Client-Side Compilers</p>
+
+        <p>
+          Pasting production API responses into third-party code-generation websites exposes bearer tokens, customer records, and internal payload structures to external servers. At the same time, naive JSON-to-TypeScript converters fail as soon as an array contains heterogeneous elements: a field present in item 0 might be omitted in item 1, or hold <code>null</code> in item 2, or change from an integer (<code>49</code>) to a floating-point number (<code>29.99</code>).
+        </p>
+        <p>
+          For the client-side <a href="https://sunasty.com/json-to-types/">Sunasty JSON to TypeScript / Zod / Go / Rust / Pydantic Generator</a>, we designed a pure TypeScript two-stage compiler that builds a structural AST first (<code>InferredSchema</code>) and renders idiomatic source code for six targets inside browser memory without sending JSON payloads over the network.
+        </p>
+
+        <h2>1. Structural Schema Lattice &amp; Heterogeneous Array Merging</h2>
+        <p>
+          Every parsed JSON node is first lifted into a tagged union (<code>null</code>, <code>boolean</code>, <code>integer</code>, <code>number</code>, <code>string</code>, <code>any</code>, <code>array</code>, or <code>object</code>). Tracking <code>integer</code> separately from floating-point <code>number</code> allows generators targeting Go (<code>int</code> vs <code>float64</code>), Rust (<code>i64</code> vs <code>f64</code>), Pydantic (<code>int</code> vs <code>float</code>), and JSON Schema Draft 2020-12 to emit tight numeric types when all observed values are integers, while widening cleanly when mixed.
+        </p>
+
+<pre><code>export function mergeSchemas(a, b) {
+  if (a.kind === b.kind) {
+    if (a.kind === 'array') {
+      return { kind: 'array', element: mergeSchemas(a.element, b.element) };
+    }
+    if (a.kind === 'object') {
+      return { kind: 'object', fields: mergeObjectSchemas(a.fields, b.fields) };
+    }
+    return a;
+  }
+
+  // Integer + Float coerces to float64 / number rather than unknown
+  if ((a.kind === 'integer' && b.kind === 'number') ||
+      (a.kind === 'number' && b.kind === 'integer')) {
+    return { kind: 'number' };
+  }
+
+  // Merging with null preserves the concrete sibling schema
+  if (a.kind === 'null') return b;
+  if (b.kind === 'null') return a;
+
+  return { kind: 'any' };
+}</code></pre>
+
+        <h2>2. Separating Optional (<code>?</code>) from Nullable (<code>| null</code>)</h2>
+        <p>
+          A common defect in quick schema generators is conflating missing keys with explicit <code>null</code> values. During <code>mergeObjectSchemas(aFields, bFields)</code>, each key across the union of both objects is tracked independently:
+        </p>
+        <ul>
+          <li><strong>Key absent in one element:</strong> marks <code>optional: true</code> on the merged <code>InferredField</code> while keeping the concrete inner type intact.</li>
+          <li><strong>Key present with value <code>null</code>:</strong> sets <code>nullable: true</code> while preserving non-null types observed in sibling items (yielding <code>string | null</code> in TypeScript or <code>z.string().nullable()</code> in Zod).</li>
+          <li><strong>Identifier Sanitization:</strong> object names pass through <code>toPascalCaseIdentifier</code> (prefixing <code>T</code> if an identifier starts with a digit), while Rust and Python fields normalize camelCase keys with <code>toSnakeCaseIdentifier</code> and annotate <code>#[serde(rename = "...")]</code> or Pydantic <code>Field(alias=...)</code> when needed.</li>
+        </ul>
+
+        <h2>3. Six Target Emitters from One AST</h2>
+        <p>
+          Decoupling inference (<code>inferSchemaFromValue</code>) from emission lets all six languages share identical structural nesting rules:
+        </p>
+        <ul>
+          <li><strong>TypeScript &amp; Zod:</strong> Nested sub-objects are hoisted top-down via deterministic name hints (<code>`${parentName}${toPascalCaseIdentifier(key)}`</code>) as <code>export interface</code> / <code>export type</code> declarations or composable <code>z.object(...)</code> schemas with exported <code>z.infer&lt;typeof Schema&gt;</code> types.</li>
+          <li><strong>JSON Schema Draft 2020-12:</strong> Populates <code>required</code> strictly from keys with <code>optional === false</code> and maps nullable fields to two-type union arrays.</li>
+          <li><strong>Go, Rust Serde &amp; Python Pydantic v2:</strong> Emits Go structs with <code>json:"field,omitempty"</code> tags, Rust structs deriving <code>Serialize, Deserialize</code>, and Pydantic v2 <code>BaseModel</code> definitions with <code>Optional[...]</code> annotations.</li>
+        </ul>
+
+        <h2>4. Related Client-Side Developer Utilities</h2>
+        <p>
+          When inspecting raw payloads before generating types, pair the <a href="https://sunasty.com/json-to-types/">JSON to TypeScript &amp; Schema Generator</a> with the browser-local <a href="https://sunasty.com/json-formatter/">JSON Formatter &amp; Validator</a>, <a href="https://sunasty.com/json-diff/">JSON Diff comparator</a>, and <a href="https://sunasty.com/har-sanitizer/">HAR Sanitizer</a> inside <a href="https://sunasty.com/dev/">Sunasty Developer Tools</a>.
+        </p>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <span><a href="/">← Back to Bastien Sulyan</a></span>
+      <span>
+        <a href="https://sunasty.com/json-to-types/">JSON to TypeScript Tool</a> ·
+        <a href="https://sunasty.com/dev/">Sunasty Dev Suite</a>
+      </span>
+    </footer>
+  </div>
+</body>
+</html>

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Zero-WASM SQLite3 &amp; Apache Parquet Binary Parsing in Browser Memory</title>
+  <meta name="description" content="Decoding SQLite3 100-byte headers, B-tree pages and varints alongside Apache Parquet PAR1 footers, Thrift Compact Protocol metadata, and Snappy pages using pure TypeScript TypedArrays.">
+  <link rel="canonical" href="https://bsulyan.github.io/notes/browser-sqlite-parquet-binary-viewers/">
+  <link rel="stylesheet" href="/style.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "headline": "Zero-WASM SQLite3 & Apache Parquet Binary Parsing in Browser Memory",
+    "author": {
+      "@type": "Person",
+      "name": "Bastien Sulyan",
+      "url": "https://bsulyan.github.io/"
+    },
+    "datePublished": "2026-11-25",
+    "url": "https://bsulyan.github.io/notes/browser-sqlite-parquet-binary-viewers/"
+  }
+  </script>
+</head>
+<body>
+  <div class="container">
+    <header class="site-header">
+      <a href="/" class="site-title">Bastien Sulyan</a>
+      <nav class="site-nav" aria-label="Main navigation">
+        <a href="/#notes">All Notes</a>
+        <a href="/#projects">Projects</a>
+        <a href="https://github.com/bsulyan">GitHub</a>
+      </nav>
+    </header>
+
+    <main>
+      <article>
+        <h1>Zero-WASM SQLite3 &amp; Apache Parquet Binary Parsing in Browser Memory</h1>
+        <p class="meta">By Bastien Sulyan · November 2026 · Binary Formats &amp; Storage Engines</p>
+
+        <p>
+          Inspecting a <code>.sqlite</code> database snapshot or an Apache <code>.parquet</code> analytics dump in the browser often relies on heavyweight WebAssembly builds that take several megabytes to download and initialize. For read-only schema inspection, filtering, and multi-format export, pure TypeScript decoders operating directly over <code>Uint8Array</code> and <code>DataView</code> parse both formats deterministically in milliseconds with minimal bundle size and zero server uploads.
+        </p>
+        <p>
+          This architecture powers both the <a href="https://sunasty.com/sqlite-viewer/">Sunasty SQLite Viewer</a> and the <a href="https://sunasty.com/parquet-viewer/">Sunasty Parquet Viewer</a> for files up to <code>100 MB</code> strictly inside client memory.
+        </p>
+
+        <h2>1. SQLite 3 Header, 1-to-9 Byte Varints &amp; Record Unpacking</h2>
+        <p>
+          A valid SQLite 3 database begins with the 16-byte magic sequence <code>"SQLite format 3\0"</code> followed by a 100-byte big-endian database header. Byte offsets <code>16..17</code> store the 16-bit page size (where raw value <code>1</code> denotes <code>65,536</code> bytes), offset <code>56</code> selects text encoding (<code>UTF-8</code>, <code>UTF-16le</code>, or <code>UTF-16be</code>), and offset <code>96</code> encodes the SQLite library version integer.
+        </p>
+
+<pre><code>export function readSqliteVarint(bytes, offset) {
+  let value = 0;
+  const maxLen = Math.min(9, bytes.byteLength - offset);
+  for (let i = 0; i &lt; maxLen; i++) {
+    const byte = bytes[offset + i];
+    // The 9th byte uses all 8 bits instead of 7 payload bits + continuation bit
+    if (i === 8) {
+      return { value: value * 256 + byte, byteLength: 9 };
+    }
+    value = value * 128 + (byte &amp; 0x7f);
+    if ((byte &amp; 0x80) === 0) {
+      return { value, byteLength: i + 1 };
+    }
+  }
+  return { value, byteLength: Math.max(1, maxLen) };
+}</code></pre>
+
+        <p>
+          Traversing Page 1 (<code>sqlite_schema</code>) and user tables inspects B-tree interior table pages (flag <code>0x05</code>) and leaf table pages (flag <code>0x0d</code>). Each cell payload packs a record header varint list specifying serial types: codes <code>0..9</code> decode fixed signed big-endian integers, IEEE-754 <code>Float64</code>, or constants <code>0</code> / <code>1</code>, while codes <code>&gt;= 12</code> map directly to variable-length byte slices of size <code>(st - 12) / 2</code> for <code>BLOB</code>s (even codes) and <code>(st - 13) / 2</code> for text strings (odd codes). Paired with DDL extraction (<code>parseCreateTableDdl</code>), the viewer surfaces column affinities, primary keys, foreign keys, a hex/ASCII BLOB drawer, and read-only <code>SELECT</code> filtering.
+        </p>
+
+        <h2>2. Apache Parquet <code>PAR1</code> Footer &amp; Selective Column Projection</h2>
+        <p>
+          Unlike row-oriented formats, Apache Parquet places metadata at the end of the binary stream. Validation checks the 4-byte <code>"PAR1"</code> magic header at offset <code>0</code>, the trailing <code>"PAR1"</code> marker at <code>byteLength - 4</code>, and the little-endian 32-bit <code>footerLength</code> immediately before it:
+        </p>
+
+<pre><code>export function validateParquetMagicBytes(bytes) {
+  if (bytes.byteLength &lt; 12) return { valid: false, footerLength: 0, footerOffset: 0 };
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const PAR1 = 0x31524150; // "PAR1" little-endian
+  if (view.getUint32(0, true) !== PAR1 || view.getUint32(bytes.byteLength - 4, true) !== PAR1) {
+    return { valid: false, footerLength: 0, footerOffset: 0 };
+  }
+  const footerLength = view.getUint32(bytes.byteLength - 8, true);
+  if (footerLength === 0 || footerLength &gt; bytes.byteLength - 12) {
+    return { valid: false, footerLength, footerOffset: 0 };
+  }
+  return { valid: true, footerLength, footerOffset: bytes.byteLength - 8 - footerLength };
+}</code></pre>
+
+        <p>
+          From <code>footerOffset</code>, a lightweight Thrift Compact Protocol reader decodes <code>FileMetaData</code> using LEB128 varints and ZigZag signed integers to recover the schema tree, <code>RowGroup</code> offsets, dictionary page positions, compression codecs (<code>UNCOMPRESSED</code>, Snappy block framing, and <code>GZIP</code> via <code>fflate</code>), and per-column min/max statistics. Because each <code>ColumnChunk</code> offset is stored independently inside <code>RowGroupMetaData</code>, checking a subset of columns in the UI only seeks and decompresses those selected column chunks.
+        </p>
+
+        <h2>3. Related Data &amp; Privacy Utilities</h2>
+        <p>
+          Export inspected tables locally as CSV, TSV, JSON, JSONL, Markdown, or SQL, then clean sensitive columns with the client-side <a href="https://sunasty.com/pii-redactor/">PII Redactor</a>, transform formats with the <a href="https://sunasty.com/data-converter/">Data Converter</a>, reconcile exports in <a href="https://sunasty.com/csv-reconcile/">CSV Reconcile</a>, or format queries in the <a href="https://sunasty.com/sql-formatter/">SQL Formatter</a>.
+        </p>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <span><a href="/">← Back to Bastien Sulyan</a></span>
+      <span>
+        <a href="https://sunasty.com/sqlite-viewer/">SQLite Viewer</a> ·
+        <a href="https://sunasty.com/parquet-viewer/">Parquet Viewer</a>
+      </span>
+    </footer>
+  </div>
+</body>
+</html>
