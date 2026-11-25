@@ -42,7 +42,7 @@
           Working with HSL in CSS makes palette generation deceptive: a pure yellow (<code>hsl(60, 100%, 50%)</code>) and a pure blue (<code>hsl(240, 100%, 50%)</code>) report the exact same HSL lightness (<code>50%</code>), yet yellow has a WCAG relative luminance of <code>0.928</code> while blue sits at <code>0.072</code>. Adjusting HSL lightness to pass WCAG AA contrast norms often shifts perceived saturation or muddies the hue.
         </p>
         <p>
-          When building the <a href="https://sunasty.com/color-picker/">Sunasty Web Color Picker</a> and the open-source <a href="https://github.com/bsulyan/sunasty-color-picker">Sunasty Color Picker Chrome Extension</a>, we implemented zero-dependency conversions between sRGB, Björn Ottosson's perceptual Oklab / OKLCH color space, and WCAG 2.1 relative luminance so developers can sample any pixel on screen and immediately compute the nearest AA/AAA-compliant shade at constant hue.
+          When building the <a href="https://sunasty.com/color-picker/">Sunasty Web Color Picker</a> and the open-source <a href="https://github.com/bsulyan/sunasty-color-picker">Sunasty Color Picker browser extension</a> (<a href="https://microsoftedge.microsoft.com/addons/detail/jcjfhbbmbnehefadhmhhegoccbdcfkgm">Microsoft Edge Add-ons</a>), we implemented zero-dependency conversions between sRGB, Björn Ottosson's perceptual Oklab / OKLCH color space, and WCAG 2.1 relative luminance so developers can sample any pixel on screen and immediately compute the nearest AA/AAA-compliant shade at constant hue.
         </p>
 
         <h2>1. sRGB Inverse Companding (Gamma Linearization)</h2>
@@ -146,6 +146,7 @@ export function getContrastRatio(rgbA, rgbB) {
       <span><a href="/">← Back to Bastien Sulyan</a></span>
       <span>
         <a href="https://sunasty.com/color-picker/">Sunasty Color Picker</a> ·
+        <a href="https://microsoftedge.microsoft.com/addons/detail/jcjfhbbmbnehefadhmhhegoccbdcfkgm">Edge Add-ons</a> ·
         <a href="https://github.com/bsulyan/sunasty-color-picker">GitHub Repository</a>
       </span>
     </footer>
